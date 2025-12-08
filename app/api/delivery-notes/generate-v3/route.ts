@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { PrismaClient } from "@prisma/client"
+import { prisma } from "@/lib/db"
 import jsPDF from "jspdf"
 import fs from "fs"
 import path from "path"
-
-const prisma = new PrismaClient()
 
 export async function POST(request: NextRequest) {
   try {
@@ -92,8 +90,25 @@ export async function POST(request: NextRequest) {
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
     doc.text("BON DE LIVRAISON", pageWidth - margin, margin + 8, { align: "right" })
 
-    // Numéro du bon
-    const noteNumber = `BL-${Date.now().toString().slice(-8)}`
+    // Générer un numéro de BL séquentiel
+    const timestamp = Date.now()
+    const year = new Date().getFullYear()
+    
+    // Obtenir ou créer le compteur pour l'année en cours
+    const sequence = await prisma.deliveryNoteSequence.upsert({
+      where: { 
+        year: year
+      },
+      create: { 
+        year: year,
+        lastNumber: 1
+      },
+      update: { 
+        lastNumber: { increment: 1 } 
+      }
+    })
+    
+    const noteNumber = `BL-${year}-${String(sequence.lastNumber).padStart(4, '0')}`
     doc.setFont("helvetica", "normal")
     doc.setFontSize(10)
     doc.setTextColor(100, 100, 100)
@@ -355,7 +370,7 @@ export async function POST(request: NextRequest) {
       fs.mkdirSync(publicDir, { recursive: true })
     }
 
-    const fileName = `BL-${Date.now()}.pdf`
+    const fileName = `BL-${timestamp}.pdf`
     const filePath = path.join(publicDir, fileName)
     const pdfBuffer = Buffer.from(doc.output("arraybuffer"))
     fs.writeFileSync(filePath, pdfBuffer)
@@ -395,10 +410,32 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Sauvegarder le bon de livraison dans la base de données
+    const deliveryNote = await prisma.deliveryNote.create({
+      data: {
+        noteNumber,
+        createdById: userId,
+        companyId: user.companyId,
+        deliveryDate: new Date(),
+        pdfPath: `/delivery-notes/${fileName}`,
+        notes: notes || '',
+        equipments: {
+          create: equipments.map((equipment) => ({
+            type: equipment.type,
+            serialNumber: equipment.serialNumber,
+            brand: equipment.brand || '',
+            model: equipment.model || '',
+            inventoryCode: equipment.inventoryCode || '',
+          }))
+        }
+      }
+    })
+
     return NextResponse.json({
       success: true,
       pdfUrl: `/delivery-notes/${fileName}`,
       fileName,
+      deliveryNoteId: deliveryNote.id,
     })
   } catch (error) {
     console.error("Erreur génération bon de livraison:", error)
@@ -406,7 +443,5 @@ export async function POST(request: NextRequest) {
       { error: "Erreur lors de la génération du PDF" },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }

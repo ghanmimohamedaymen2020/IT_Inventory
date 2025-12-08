@@ -102,7 +102,7 @@ export async function POST(request: Request) {
     })
 
     const body = await request.json()
-    const { brand, serialNumber, model, size, resolution, purchaseDate, warrantyDate, machineId } = body
+    const { brand, serialNumber, model, size, resolution, purchaseDate, warrantyDate, machineId, companyId } = body
 
     if (!brand || !serialNumber) {
       return NextResponse.json(
@@ -111,13 +111,16 @@ export async function POST(request: Request) {
       )
     }
 
+    // Utiliser companyId du body ou de la session
+    const targetCompanyId = companyId || session.user.companyId
+
     // Récupérer le code de la compagnie
     const company = await prisma.company.findUnique({
-      where: { id: session.user.companyId }
+      where: { id: targetCompanyId }
     })
 
     if (!company) {
-      console.warn("POST /api/screens: compagnie introuvable", session.user.companyId)
+      console.warn("POST /api/screens: compagnie introuvable", targetCompanyId)
       return NextResponse.json({ error: "Compagnie non trouvée" }, { status: 404 })
     }
 
@@ -152,7 +155,7 @@ export async function POST(request: Request) {
         purchaseDate: purchaseDate ? new Date(purchaseDate) : new Date(),
         warrantyDate: warrantyDate ? new Date(warrantyDate) : null,
         machineId: machineId || null,
-        companyId: session.user.companyId,
+        companyId: targetCompanyId,
       },
       include: {
         machine: true,

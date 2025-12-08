@@ -16,6 +16,7 @@ model Company {
   updatedAt       DateTime          @updatedAt
   admins          Admin[]
   deliveryNotes   DeliveryNote[]
+  returnNotes     ReturnNote[]
   machines        Machine[]
   screens         Screen[]
   softwareCatalog SoftwareCatalog[]
@@ -40,6 +41,7 @@ model User {
   updatedAt             DateTime               @updatedAt
   admin                 Admin?
   deliveryNotesCreated  DeliveryNote[]
+  returnNotesCreated    ReturnNote[]           @relation("ReturnNotesCreated")
   installationSheets    InstallationSheet[]
   machines              Machine[]
   screens               Screen[]
@@ -124,26 +126,42 @@ model Screen {
 }
 
 model DeliveryNote {
-  id               String         @id @default(cuid())
-  noteNumber       String         @unique
-  vendor           String
+  id               String                   @id @default(cuid())
+  noteNumber       String                   @unique
+  vendor           String?
   deliveryDate     DateTime
   purchaseOrderRef String?
-  status           String         @default("pending")
+  status           String                   @default("pending")
   receivedBy       String?
   notes            String?
   pdfPath          String?
   companyId        String
   createdById      String
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
   deliveryItems    DeliveryItem[]
-  company          Company        @relation(fields: [companyId], references: [id])
-  createdBy        User           @relation(fields: [createdById], references: [id])
+  equipments       DeliveryNoteEquipment[]
+  company          Company                  @relation(fields: [companyId], references: [id])
+  createdBy        User                     @relation(fields: [createdById], references: [id])
   machines         Machine[]
 
   @@index([companyId])
   @@index([noteNumber])
+}
+
+model DeliveryNoteEquipment {
+  id             String       @id @default(cuid())
+  deliveryNoteId String
+  type           String
+  serialNumber   String
+  brand          String?
+  model          String?
+  inventoryCode  String?
+  createdAt      DateTime     @default(now())
+  deliveryNote   DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
+
+  @@index([deliveryNoteId])
+  @@index([serialNumber])
 }
 
 model DeliveryItem {
@@ -244,4 +262,58 @@ model InventorySequence {
   updatedAt   DateTime @updatedAt
 
   @@unique([companyCode, assetType])
+}
+
+model DeliveryNoteSequence {
+  id         String   @id @default(cuid())
+  year       Int      @unique
+  lastNumber Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model ReturnNote {
+  id             String              @id @default(cuid())
+  noteNumber     String              @unique
+  returnDate     DateTime
+  returnedBy     String
+  reason         String?
+  destination    String              @default("stock") // "stock" ou "reparation" ou "rebut"
+  notes          String?
+  pdfPath        String?
+  companyId      String
+  createdById    String
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  equipments     ReturnNoteEquipment[]
+  company        Company             @relation(fields: [companyId], references: [id])
+  createdBy      User                @relation("ReturnNotesCreated", fields: [createdById], references: [id])
+
+  @@index([companyId])
+  @@index([noteNumber])
+}
+
+model ReturnNoteEquipment {
+  id             String     @id @default(cuid())
+  returnNoteId   String
+  type           String     // "machine" | "screen" | "peripheral"
+  serialNumber   String
+  brand          String?
+  model          String?
+  inventoryCode  String?
+  previousUser   String?    // Nom de l'utilisateur qui retourne l'équipement
+  condition      String?    // "bon" | "moyen" | "mauvais"
+  createdAt      DateTime   @default(now())
+  returnNote     ReturnNote @relation(fields: [returnNoteId], references: [id], onDelete: Cascade)
+
+  @@index([returnNoteId])
+  @@index([serialNumber])
+}
+
+model ReturnNoteSequence {
+  id         String   @id @default(cuid())
+  year       Int      @unique
+  lastNumber Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }

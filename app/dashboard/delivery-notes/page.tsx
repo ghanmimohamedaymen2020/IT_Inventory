@@ -2,6 +2,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Package, Plus } from "lucide-react"
+import { DeliveryNotesList } from "@/components/delivery-notes/delivery-notes-list"
 
 export default function DeliveryNotesPage() {
   return (
@@ -21,19 +22,7 @@ export default function DeliveryNotesPage() {
         </Link>
       </div>
 
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <Package className="h-12 w-12 text-muted-foreground mb-4" />
-          <p className="text-sm text-muted-foreground mb-4">
-            Créez des bons de livraison pour assigner des machines aux utilisateurs
-          </p>
-          <Link href="/dashboard/delivery-notes/create">
-            <Button variant="outline">
-              Créer votre premier bon de livraison
-            </Button>
-          </Link>
-        </CardContent>
-      </Card>
+      <DeliveryNotesList />
     </div>
   )
 }

@@ -1,12 +1,20 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
-import { Users as UsersIcon, Plus, Mail, Phone, Edit } from "lucide-react"
+import { Users as UsersIcon, Plus, Edit } from "lucide-react"
 import { ExportMenu } from "@/components/exports/export-menu"
 import { cookies } from "next/headers"
 import { jwtVerify } from "jose"
 import { prisma } from "@/lib/db"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
 async function getDevSession() {
   const cookieStore = await cookies()
@@ -103,44 +111,57 @@ export default async function UsersPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {users.map((user) => (
-            <Card key={user.id}>
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg">
-                      {user.firstName} {user.lastName}
-                    </CardTitle>
-                    <CardDescription className="mt-1">
-                      {user.company.name}
-                    </CardDescription>
-                  </div>
-                  {getRoleBadge(user.role)}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="space-y-2">
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <Mail className="mr-2 h-4 w-4" />
+        <div className="border rounded-lg">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nom</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Téléphone</TableHead>
+                <TableHead>Société</TableHead>
+                <TableHead>Département</TableHead>
+                <TableHead>Rôle</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell className="font-medium">
+                    {user.firstName} {user.lastName}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
                     {user.email}
-                  </div>
-                  {user.phone && (
-                    <div className="flex items-center text-sm text-muted-foreground">
-                      <Phone className="mr-2 h-4 w-4" />
-                      {user.phone}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {user.phone || '-'}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">{user.company.name}</span>
+                      <Badge variant="outline" className="text-xs">
+                        {user.company.code}
+                      </Badge>
                     </div>
-                  )}
-                </div>
-                <Link href={`/dashboard/users/${user.id}`}>
-                  <Button variant="outline" size="sm" className="w-full">
-                    <Edit className="mr-2 h-4 w-4" />
-                    Modifier
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-          ))}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {user.department || '-'}
+                  </TableCell>
+                  <TableCell>
+                    {getRoleBadge(user.role)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Link href={`/dashboard/users/${user.id}`}>
+                      <Button variant="outline" size="sm">
+                        <Edit className="mr-2 h-4 w-4" />
+                        Modifier
+                      </Button>
+                    </Link>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>

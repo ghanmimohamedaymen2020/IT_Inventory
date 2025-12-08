@@ -1,19 +1,11 @@
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { Plus } from "lucide-react"
 import { ExportMenu } from "@/components/exports/export-menu"
 import { prisma } from "@/lib/db"
 import { cookies } from "next/headers"
 import { jwtVerify } from "jose"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { MachinesFilter } from "@/components/machines/machines-filter"
 
 async function getDevSession() {
   const cookieStore = await cookies()
@@ -55,23 +47,6 @@ export default async function MachinesPage() {
     }
   })
 
-  type MachineWithRelations = typeof machines[number]
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'en_service':
-        return <Badge className="bg-green-500">En service</Badge>
-      case 'maintenance':
-        return <Badge className="bg-orange-500">Maintenance</Badge>
-      case 'en_stock':
-        return <Badge variant="secondary">En stock</Badge>
-      case 'retiré':
-        return <Badge variant="destructive">Retiré</Badge>
-      default:
-        return <Badge variant="outline">{status}</Badge>
-    }
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -96,89 +71,7 @@ export default async function MachinesPage() {
         </div>
       </div>
 
-      <div className="border rounded-lg">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Code Inventaire</TableHead>
-              <TableHead>Nom</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Marque</TableHead>
-              <TableHead>Modèle</TableHead>
-              <TableHead>N° Série</TableHead>
-              <TableHead>Date d'Achat</TableHead>
-              <TableHead>Garantie</TableHead>
-              <TableHead>Utilisateur Assigné</TableHead>
-              <TableHead>Statut</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {machines.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
-                  Aucune machine trouvée
-                </TableCell>
-              </TableRow>
-            ) : (
-              machines.map((machine: MachineWithRelations) => (
-                <TableRow key={machine.id}>
-                  <TableCell className="font-mono text-sm">
-                    {machine.inventoryCode}
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    {machine.machineName || "-"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{machine.type}</Badge>
-                  </TableCell>
-                  <TableCell>{machine.vendor}</TableCell>
-                  <TableCell>{machine.model || "-"}</TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {machine.serialNumber}
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {machine.acquisitionDate 
-                      ? new Date(machine.acquisitionDate).toLocaleDateString('fr-FR')
-                      : "-"}
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {machine.warrantyDate 
-                      ? new Date(machine.warrantyDate).toLocaleDateString('fr-FR')
-                      : "-"}
-                  </TableCell>
-                  <TableCell>
-                    {machine.user ? (
-                      <div className="text-sm">
-                        <div className="font-medium">
-                          {machine.user.firstName} {machine.user.lastName}
-                        </div>
-                        <div className="text-muted-foreground text-xs">
-                          {machine.user.email}
-                        </div>
-                      </div>
-                    ) : (
-                      <Badge variant="secondary" className="text-xs">
-                        Non assigné
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {getStatusBadge(machine.assetStatus)}
-                  </TableCell>
-                  <TableCell>
-                    <Link href={`/dashboard/machines/${machine.id}`}>
-                      <Button variant="outline" size="sm">
-                        Modifier
-                      </Button>
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <MachinesFilter machines={machines} />
     </div>
   )
 }

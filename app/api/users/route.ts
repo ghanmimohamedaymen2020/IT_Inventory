@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
 
     // Vérifier que la compagnie existe
     const company = await prisma.company.findUnique({
-      where: { id: session.user.companyId }
+      where: { id: data.companyId }
     })
 
     if (!company) {

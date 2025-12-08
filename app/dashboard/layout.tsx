@@ -11,7 +11,8 @@ import {
   AppWindow,
   Settings,
   LogOut,
-  Monitor
+  Monitor,
+  PackageOpen
 } from "lucide-react"
 import { signOut } from "@/lib/auth"
 import { cookies } from "next/headers"
@@ -76,6 +77,7 @@ export default async function DashboardLayout({
     { name: "Écrans", href: "/dashboard/screens", icon: Monitor },
     { name: "Utilisateurs", href: "/dashboard/users", icon: Users },
     { name: "Bons de livraison", href: "/dashboard/delivery-notes", icon: Package },
+    { name: "Bons de retour", href: "/dashboard/return-notes", icon: PackageOpen },
     { name: "Installations", href: "/dashboard/installation", icon: ClipboardList },
     { name: "Logiciels", href: "/dashboard/software", icon: AppWindow },
   ]
