@@ -17,8 +17,57 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+// Spécifications techniques selon le type de machine
+const MACHINE_SPECS = {
+  'Laptop': {
+    fields: [
+      { name: 'cpu', label: 'Processeur', placeholder: 'Intel Core i5-1135G7' },
+      { name: 'ram', label: 'RAM', placeholder: '8GB DDR4' },
+      { name: 'disk', label: 'Stockage', placeholder: '256GB SSD' },
+      { name: 'screenSize', label: 'Taille écran', placeholder: '14 pouces' },
+      { name: 'battery', label: 'Batterie', placeholder: '45Wh' },
+      { name: 'os', label: 'OS', placeholder: 'Windows 11 Pro' },
+    ]
+  },
+  'Desktop': {
+    fields: [
+      { name: 'cpu', label: 'Processeur', placeholder: 'Intel Core i7-12700' },
+      { name: 'ram', label: 'RAM', placeholder: '16GB DDR4' },
+      { name: 'disk', label: 'Stockage', placeholder: '512GB SSD + 1TB HDD' },
+      { name: 'gpu', label: 'Carte graphique', placeholder: 'NVIDIA GTX 1650' },
+      { name: 'psu', label: 'Alimentation', placeholder: '500W' },
+      { name: 'os', label: 'OS', placeholder: 'Windows 11 Pro' },
+    ]
+  },
+  'Server': {
+    fields: [
+      { name: 'cpu', label: 'Processeur', placeholder: 'Intel Xeon E-2388G' },
+      { name: 'ram', label: 'RAM', placeholder: '32GB ECC DDR4' },
+      { name: 'disk', label: 'Stockage', placeholder: '2x 1TB SSD RAID1' },
+      { name: 'raidType', label: 'RAID', placeholder: 'RAID 1' },
+      { name: 'networkPorts', label: 'Ports réseau', placeholder: '2x 1Gbps' },
+      { name: 'os', label: 'OS', placeholder: 'Windows Server 2022' },
+    ]
+  },
+  'Tablet': {
+    fields: [
+      { name: 'screenSize', label: 'Taille écran', placeholder: '10.2 pouces' },
+      { name: 'ram', label: 'RAM', placeholder: '4GB' },
+      { name: 'disk', label: 'Stockage', placeholder: '64GB' },
+      { name: 'os', label: 'Système', placeholder: 'Android 13' },
+      { name: 'connectivity', label: 'Connectivité', placeholder: 'WiFi + 4G' },
+    ]
+  },
+  'Écran': {
+    fields: [
+      { name: 'screenSize', label: 'Taille', type: 'select', options: ['19"', '20"', '21.5"', '22"', '23"', '23.8"', '24"', '27"', '32"', '34"', '43"', '49"'] },
+      { name: 'screenResolution', label: 'Résolution', type: 'select', options: ['1366x768', '1600x900', '1920x1080', '2560x1440', '3840x2160'] },
+    ]
+  },
+} as const
+
 const machineSchema = z.object({
-  type: z.enum(["desktop", "laptop", "server", "other"]),
+  type: z.string().min(1, "Le type de machine est requis"),
   brand: z.string().min(1, "La marque est requise"),
   model: z.string().min(1, "Le modèle est requis"),
   serialNumber: z.string().min(1, "Le numéro de série est requis"),
@@ -48,6 +97,20 @@ export function MachineForm() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [users, setUsers] = useState<User[]>([])
+  const [selectedType, setSelectedType] = useState<string>("")
+  const [technicalSpecs, setTechnicalSpecs] = useState<Record<string, string>>({})
+  const defaultTypes = ["Laptop", "Desktop", "Server", "Tablet"]
+  const [machineTypes, setMachineTypes] = useState<string[]>(defaultTypes)
+
+  useEffect(() => {
+    const savedMachineTypes = localStorage.getItem("custom_machine_types")
+    if (savedMachineTypes) {
+      const customTypes = JSON.parse(savedMachineTypes)
+      // Fusionner en évitant les doublons
+      const mergedTypes = Array.from(new Set([...defaultTypes, ...customTypes]))
+      setMachineTypes(mergedTypes)
+    }
+  }, [])
 
   useEffect(() => {
     // Charger la liste des utilisateurs
@@ -116,17 +179,22 @@ export function MachineForm() {
           <div className="space-y-2">
             <Label htmlFor="type">Type *</Label>
             <Select
-              onValueChange={(value) => setValue("type", value as any)}
+              onValueChange={(value) => {
+                setValue("type", value as any)
+                setSelectedType(value)
+                setTechnicalSpecs({}) // Réinitialiser les specs quand on change de type
+              }}
               defaultValue={watch("type")}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Sélectionner un type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="desktop">Ordinateur de bureau</SelectItem>
-                <SelectItem value="laptop">Ordinateur portable</SelectItem>
-                <SelectItem value="server">Serveur</SelectItem>
-                <SelectItem value="other">Autre</SelectItem>
+                {machineTypes.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             {errors.type && (
@@ -190,46 +258,53 @@ export function MachineForm() {
         </div>
       </div>
 
-      {/* Spécifications techniques */}
+      {/* Spécifications Techniques Dynamiques */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">Spécifications techniques</h3>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="processor">Processeur</Label>
-            <Input
-              id="processor"
-              {...register("processor")}
-              placeholder="ex: Intel Core i7-8650U"
-            />
+        
+        {selectedType && MACHINE_SPECS[selectedType as keyof typeof MACHINE_SPECS] ? (
+          <div className="grid gap-4 md:grid-cols-2">
+            {MACHINE_SPECS[selectedType as keyof typeof MACHINE_SPECS].fields.map((field) => (
+              <div key={field.name} className="space-y-2">
+                <Label htmlFor={field.name}>{field.label}</Label>
+                {'options' in field && field.type === 'select' ? (
+                  <Select
+                    onValueChange={(value) => {
+                      setTechnicalSpecs({ ...technicalSpecs, [field.name]: value })
+                      setValue(field.name as any, value)
+                    }}
+                    value={technicalSpecs[field.name] || ''}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={`Sélectionner ${field.label.toLowerCase()}`} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {field.options.map((option: string) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    id={field.name}
+                    value={technicalSpecs[field.name] || ''}
+                    onChange={(e) => {
+                      setTechnicalSpecs({ ...technicalSpecs, [field.name]: e.target.value })
+                      setValue(field.name as any, e.target.value)
+                    }}
+                    placeholder={'placeholder' in field ? field.placeholder : ''}
+                  />
+                )}
+              </div>
+            ))}
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="ram">RAM</Label>
-            <Input
-              id="ram"
-              {...register("ram")}
-              placeholder="ex: 16GB DDR4"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="storage">Stockage</Label>
-            <Input
-              id="storage"
-              {...register("storage")}
-              placeholder="ex: 512GB SSD"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="os">Système d'exploitation</Label>
-            <Input
-              id="os"
-              {...register("os")}
-              placeholder="ex: Windows 11 Pro"
-            />
-          </div>
-        </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Sélectionnez un type de machine pour voir les spécifications techniques.
+          </p>
+        )}
       </div>
 
       {/* Informations d'achat et garantie */}

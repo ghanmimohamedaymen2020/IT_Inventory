@@ -10,7 +10,8 @@ import {
   ClipboardList, 
   AppWindow,
   Settings,
-  LogOut
+  LogOut,
+  Monitor
 } from "lucide-react"
 import { signOut } from "@/lib/auth"
 import { cookies } from "next/headers"
@@ -72,6 +73,7 @@ export default async function DashboardLayout({
   const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Machines", href: "/dashboard/machines", icon: Laptop },
+    { name: "Écrans", href: "/dashboard/screens", icon: Monitor },
     { name: "Utilisateurs", href: "/dashboard/users", icon: Users },
     { name: "Bons de livraison", href: "/dashboard/delivery-notes", icon: Package },
     { name: "Installations", href: "/dashboard/installation", icon: ClipboardList },

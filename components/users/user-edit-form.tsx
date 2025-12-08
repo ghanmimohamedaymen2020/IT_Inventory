@@ -47,7 +47,7 @@ interface UserEditFormProps {
     lastName: string
     phone: string | null
     role: string
-    company: { name: string }
+    company: { id: string; name: string }
     office365Subscription: string | null
     department: string | null
     office: string | null
@@ -59,7 +59,7 @@ interface UserEditFormProps {
 export function UserEditForm({ user }: UserEditFormProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
-  const [companies, setCompanies] = useState<string[]>(DEFAULT_COMPANIES)
+  const [companies, setCompanies] = useState<Array<{ id: string; name: string; code: string }>>([])
   const [offices, setOffices] = useState<string[]>(DEFAULT_OFFICES)
   const [subscriptions, setSubscriptions] = useState<string[]>(DEFAULT_SUBSCRIPTIONS)
   const [departments, setDepartments] = useState<string[]>(DEFAULT_DEPARTMENTS)
@@ -68,13 +68,17 @@ export function UserEditForm({ user }: UserEditFormProps) {
   const [newEmail, setNewEmail] = useState("")
 
   useEffect(() => {
-    const savedCompanies = localStorage.getItem("custom_companies")
+    // Charger les sociétés depuis l'API
+    fetch('/api/companies')
+      .then(res => res.json())
+      .then(data => setCompanies(data))
+      .catch(err => console.error('Erreur chargement sociétés:', err))
+
     const savedOffices = localStorage.getItem("custom_offices")
     const savedSubscriptions = localStorage.getItem("custom_subscriptions")
     const savedDepartments = localStorage.getItem("custom_departments")
     const savedGlobalEmails = localStorage.getItem("custom_global_emails")
     
-    if (savedCompanies) setCompanies(JSON.parse(savedCompanies))
     if (savedOffices) setOffices(JSON.parse(savedOffices))
     if (savedSubscriptions) setSubscriptions(JSON.parse(savedSubscriptions))
     if (savedDepartments) setDepartments(JSON.parse(savedDepartments))
@@ -106,11 +110,15 @@ export function UserEditForm({ user }: UserEditFormProps) {
   const onSubmit = async (data: UserFormData) => {
     setIsLoading(true)
     try {
+      // Trouver l'ID de la société sélectionnée
+      const selectedCompany = companies.find(c => c.name === data.company)
+      
       const response = await fetch(`/api/users/${user.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...data,
+          companyId: selectedCompany?.id || user.company.id,
           additionalEmails,
         }),
       })
@@ -307,8 +315,8 @@ export function UserEditForm({ user }: UserEditFormProps) {
               </SelectTrigger>
               <SelectContent>
                 {companies.map((company) => (
-                  <SelectItem key={company} value={company}>
-                    {company}
+                  <SelectItem key={company.id} value={company.name}>
+                    {company.name} ({company.code})
                   </SelectItem>
                 ))}
               </SelectContent>

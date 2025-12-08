@@ -72,6 +72,7 @@ export async function PATCH(
         lastName: data.lastName,
         phone: data.phone || null,
         role: data.role,
+        companyId: data.companyId || existingUser.companyId,
         department: data.department || null,
         office: data.office || null,
         office365Subscription: data.office365Subscription ?? existingUser.office365Subscription,

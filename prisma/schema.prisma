@@ -8,46 +8,45 @@ datasource db {
 }
 
 model Company {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  code      String   @unique // ABC, XYZ (pour codes inventaire)
-  logoPath  String?  // Chemin du logo de la société (géré par super_admin)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  machines       Machine[]
-  users          User[]
-  admins         Admin[]
-  deliveryNotes  DeliveryNote[]
+  id              String            @id @default(cuid())
+  name            String            @unique
+  code            String            @unique
+  logoPath        String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  admins          Admin[]
+  deliveryNotes   DeliveryNote[]
+  machines        Machine[]
+  screens         Screen[]
   softwareCatalog SoftwareCatalog[]
+  users           User[]
 }
 
 model User {
-  id                      String   @id @default(cuid())
-  firstName               String
-  lastName                String
-  email                   String   @unique // Email principal pour l'authentification
-  companyId               String
-  office365Subscription   String?  // Microsoft 365 Business Basic, Business Standard, etc.
-  globalEmail             String?  // Email global géré comme liste (ex: support@, sales@, etc.)
-  emailLogin              String?
-  phone                   String?
-  googleAuthId            String?  @unique
-  role                    String   @default("viewer") // super_admin, company_admin, viewer
-  department              String?  // Documentation, IT, Operations, Sales, Brokerage, Finance
-  office                  String?  // Rades, Sfax, Sousse, Charguia
-  
-  company                 Company     @relation(fields: [companyId], references: [id])
-  machines                Machine[]
-  installationSheets      InstallationSheet[]
-  softwareInstallations   SoftwareInstallation[]
-  deliveryNotesCreated    DeliveryNote[]
-  admin                   Admin?
-  userEmails              UserEmail[] // Emails supplémentaires
-  
-  createdAt               DateTime    @default(now())
-  updatedAt               DateTime    @updatedAt
-  
+  id                    String                 @id @default(cuid())
+  firstName             String
+  lastName              String
+  email                 String                 @unique
+  companyId             String
+  office365Subscription String?
+  globalEmail           String?
+  emailLogin            String?
+  phone                 String?
+  googleAuthId          String?                @unique
+  role                  String                 @default("viewer")
+  department            String?
+  office                String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  admin                 Admin?
+  deliveryNotesCreated  DeliveryNote[]
+  installationSheets    InstallationSheet[]
+  machines              Machine[]
+  screens               Screen[]
+  softwareInstallations SoftwareInstallation[]
+  company               Company                @relation(fields: [companyId], references: [id])
+  userEmails            UserEmail[]
+
   @@index([companyId])
   @@index([email])
 }
@@ -57,59 +56,43 @@ model UserEmail {
   email     String
   userId    String
   isPrimary Boolean  @default(false)
-  
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
   createdAt DateTime @default(now())
-  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([userId, email])
   @@index([userId])
 }
 
 model Machine {
-  id                String   @id @default(cuid())
-  
-  // Identification
-  inventoryCode     String   @unique // IT-ASSET-ABC-001
-  serialNumber      String   @unique
+  id                String                 @id @default(cuid())
+  inventoryCode     String                 @unique
+  serialNumber      String                 @unique
   machineName       String
-  
-  // Informations générales
-  type              String   // Laptop, Desktop, Server
-  vendor            String   // DELL, Lenovo, HP, Microsoft
+  type              String
+  vendor            String
   model             String
   acquisitionDate   DateTime
-  
-  // Spécifications
   windowsVersion    String?
-  productKey        String?  // chiffré
+  productKey        String?
   cpu               String?
   ram               String?
   disk              String?
-  
-  // Gestion
-  inventoryTicket   Boolean  @default(false)
+  inventoryTicket   Boolean                @default(false)
   warrantyDate      DateTime?
-  assetStatus       String   @default("en_stock") // en_stock, en_service, maintenance, retiré
-  
-  // Relations
+  assetStatus       String                 @default("en_stock")
   companyId         String
   userId            String?
   deliveryNoteId    String?
-  
-  company           Company      @relation(fields: [companyId], references: [id])
-  user              User?        @relation(fields: [userId], references: [id])
-  deliveryNote      DeliveryNote? @relation(fields: [deliveryNoteId], references: [id])
+  qrCodePath        String?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  installationSheet InstallationSheet?
+  company           Company                @relation(fields: [companyId], references: [id])
+  deliveryNote      DeliveryNote?          @relation(fields: [deliveryNoteId], references: [id])
+  user              User?                  @relation(fields: [userId], references: [id])
   screens           Screen[]
   installations     SoftwareInstallation[]
-  installationSheet InstallationSheet?
-  
-  // QR Code
-  qrCodePath        String?
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
+
   @@index([companyId])
   @@index([userId])
   @@index([inventoryCode])
@@ -117,157 +100,148 @@ model Machine {
 }
 
 model Screen {
-  id              String   @id @default(cuid())
-  brand           String
-  serialNumber    String   @unique
-  inventoryCode   String   @unique // IT-SCREEN-ABC-001
-  model           String?
-  size            String?
-  machineId       String
-  
-  machine         Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
+  id            String    @id @default(cuid())
+  brand         String
+  serialNumber  String    @unique
+  inventoryCode String    @unique
+  model         String?
+  size          String?
+  resolution    String?
+  purchaseDate  DateTime?
+  warrantyDate  DateTime?
+  machineId     String?
+  userId        String?
+  companyId     String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  machine       Machine?  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  user          User?     @relation(fields: [userId], references: [id])
+  company       Company   @relation(fields: [companyId], references: [id])
+
   @@index([machineId])
+  @@index([userId])
+  @@index([companyId])
 }
 
 model DeliveryNote {
-  id                  String   @id @default(cuid())
-  noteNumber          String   @unique // BL-2024-001
-  vendor              String
-  deliveryDate        DateTime
-  purchaseOrderRef    String?
-  status              String   @default("pending") // pending, partial, complete
-  receivedBy          String?
-  notes               String?
-  pdfPath             String?
-  
-  // Relations
-  companyId           String
-  createdById         String
-  
-  company             Company  @relation(fields: [companyId], references: [id])
-  createdBy           User     @relation(fields: [createdById], references: [id])
-  deliveryItems       DeliveryItem[]
-  machines            Machine[]
-  
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  
+  id               String         @id @default(cuid())
+  noteNumber       String         @unique
+  vendor           String
+  deliveryDate     DateTime
+  purchaseOrderRef String?
+  status           String         @default("pending")
+  receivedBy       String?
+  notes            String?
+  pdfPath          String?
+  companyId        String
+  createdById      String
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  deliveryItems    DeliveryItem[]
+  company          Company        @relation(fields: [companyId], references: [id])
+  createdBy        User           @relation(fields: [createdById], references: [id])
+  machines         Machine[]
+
   @@index([companyId])
   @@index([noteNumber])
 }
 
 model DeliveryItem {
-  id                  String   @id @default(cuid())
-  description         String
-  quantity            Int
-  unitPrice           Float?
-  expectedSerial      String?
-  receivedSerial      String?
-  status              String   @default("expected") // expected, received, missing
-  
-  deliveryNoteId      String
-  deliveryNote        DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
-  
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  
+  id             String       @id @default(cuid())
+  description    String
+  quantity       Int
+  unitPrice      Float?
+  expectedSerial String?
+  receivedSerial String?
+  status         String       @default("expected")
+  deliveryNoteId String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deliveryNote   DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
+
   @@index([deliveryNoteId])
 }
 
 model InstallationSheet {
-  id                      String   @id @default(cuid())
-  installationDate        DateTime
-  technicianId            String
-  networkConfig           Json     // { ip, mac, hostname, domain }
-  softwareInstalled       Json     // [{ name, version, date }]
-  customApplications      Json?
-  preDeploymentChecklist  Json     // { windowsUpdates, antivirus, backup, etc. }
-  digitalSignaturePath    String?
-  notes                   String?
-  
-  machineId               String   @unique
-  machine                 Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
-  technician              User     @relation(fields: [technicianId], references: [id])
-  
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  
+  id                     String   @id @default(cuid())
+  installationDate       DateTime
+  technicianId           String
+  networkConfig          Json
+  softwareInstalled      Json
+  customApplications     Json?
+  preDeploymentChecklist Json
+  digitalSignaturePath   String?
+  notes                  String?
+  machineId              String   @unique
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  machine                Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  technician             User     @relation(fields: [technicianId], references: [id])
+
   @@index([technicianId])
 }
 
 model SoftwareCatalog {
-  id                String   @id @default(cuid())
-  name              String
-  version           String
-  vendor            String
-  licenseType       String   // Perpetual, Subscription, OpenSource
-  licenseKey        String?   // chiffré
-  seatsAvailable    Int
-  seatsUsed         Int      @default(0)
-  expirationDate    DateTime?
-  purchaseDate      DateTime?
-  purchasePrice     Float?
-  
-  companyId         String
-  company           Company  @relation(fields: [companyId], references: [id])
-  installations     SoftwareInstallation[]
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  @@index([companyId])
+  id             String                 @id @default(cuid())
+  name           String
+  version        String
+  vendor         String
+  licenseType    String
+  licenseKey     String?
+  seatsAvailable Int
+  seatsUsed      Int                    @default(0)
+  expirationDate DateTime?
+  purchaseDate   DateTime?
+  purchasePrice  Float?
+  companyId      String
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  company        Company                @relation(fields: [companyId], references: [id])
+  installations  SoftwareInstallation[]
+
   @@unique([companyId, name, version])
+  @@index([companyId])
 }
 
 model SoftwareInstallation {
-  id                String   @id @default(cuid())
-  installationDate  DateTime @default(now())
-  installedById     String
-  licenseUsed       String?  // si licence spécifique
-  
-  softwareId        String
-  machineId         String
-  status            String   @default("active") // active, removed
-  
-  software          SoftwareCatalog @relation(fields: [softwareId], references: [id])
-  machine           Machine         @relation(fields: [machineId], references: [id], onDelete: Cascade)
-  installedBy       User            @relation(fields: [installedById], references: [id])
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
+  id               String          @id @default(cuid())
+  installationDate DateTime        @default(now())
+  installedById    String
+  licenseUsed      String?
+  softwareId       String
+  machineId        String
+  status           String          @default("active")
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  installedBy      User            @relation(fields: [installedById], references: [id])
+  machine          Machine         @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  software         SoftwareCatalog @relation(fields: [softwareId], references: [id])
+
   @@index([softwareId])
   @@index([machineId])
   @@index([installedById])
 }
 
 model Admin {
-  id                String   @id @default(cuid())
-  role              String   // super_admin, company_admin, viewer
-  userId            String   @unique
-  companyId         String?   // null pour super_admin
-  
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  company           Company?  @relation(fields: [companyId], references: [id])
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
+  id        String   @id @default(cuid())
+  role      String
+  userId    String   @unique
+  companyId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  company   Company? @relation(fields: [companyId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
 }
 
-// Modèle pour le suivi des séquences de codes inventaire
 model InventorySequence {
   id          String   @id @default(cuid())
   companyCode String
-  assetType   String   // ASSET, SCREEN, PERIPH
+  assetType   String
   lastNumber  Int      @default(0)
-  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   @@unique([companyCode, assetType])
 }

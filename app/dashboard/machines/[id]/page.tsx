@@ -44,6 +44,14 @@ export default async function MachineEditPage({
     include: {
       company: true,
       user: true,
+      screens: {
+        select: {
+          id: true,
+          brand: true,
+          model: true,
+          inventoryCode: true,
+        },
+      },
     }
   })
 

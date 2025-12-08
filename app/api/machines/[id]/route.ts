@@ -66,6 +66,7 @@ export async function PATCH(
         warrantyDate: data.warrantyDate || null,
         assetStatus: data.assetStatus,
         userId: data.userId || null,
+        companyId: data.companyId,
         inventoryTicket: data.inventoryTicket,
       },
       include: {
@@ -73,6 +74,23 @@ export async function PATCH(
         user: true,
       }
     })
+
+    // Gérer l'écran associé
+    if (data.screenId) {
+      // Associer l'écran à cette machine
+      await prisma.screen.update({
+        where: { id: data.screenId },
+        data: { machineId: id }
+      })
+    }
+    
+    // Si screenId est vide/null, dissocier tous les écrans de cette machine
+    if (!data.screenId || data.screenId === "none") {
+      await prisma.screen.updateMany({
+        where: { machineId: id },
+        data: { machineId: null }
+      })
+    }
 
     return NextResponse.json({ machine })
   } catch (error) {

@@ -37,10 +37,22 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
     }
 
+    // Récupérer le paramètre de filtre status
+    const { searchParams } = new URL(req.url)
+    const statusFilter = searchParams.get('status')
+
+    // Construire la requête avec filtres optionnels
+    const whereClause: any = {}
+    if (statusFilter) {
+      whereClause.assetStatus = statusFilter
+    }
+
     // Récupérer les machines depuis PostgreSQL
     const machines = await prisma.machine.findMany({
+      where: whereClause,
       include: {
         company: true,
+        user: true,
         screens: true
       },
       orderBy: {

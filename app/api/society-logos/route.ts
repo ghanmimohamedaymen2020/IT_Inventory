@@ -3,6 +3,7 @@ import { writeFile, unlink } from 'fs/promises'
 import { join } from 'path'
 import { cookies } from 'next/headers'
 import { jwtVerify } from 'jose'
+import { prisma } from '@/lib/db'
 
 async function getDevSession() {
   const cookieStore = await cookies()
@@ -40,10 +41,19 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData()
     const file = formData.get('logo') as File
-    const companyName = formData.get('companyName') as string
+    const companyId = formData.get('companyId') as string
 
-    if (!file || !companyName) {
-      return NextResponse.json({ error: 'Fichier et nom de société requis' }, { status: 400 })
+    if (!file || !companyId) {
+      return NextResponse.json({ error: 'Fichier et ID de société requis' }, { status: 400 })
+    }
+
+    // Vérifier que la société existe
+    const company = await prisma.company.findUnique({
+      where: { id: companyId }
+    })
+
+    if (!company) {
+      return NextResponse.json({ error: 'Société non trouvée' }, { status: 404 })
     }
 
     // Vérifier le type de fichier
@@ -67,13 +77,19 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes)
 
     // Générer un nom de fichier sécurisé
-    const safeCompanyName = companyName.replace(/[^a-z0-9]/gi, '-').toLowerCase()
+    const safeCompanyName = company.code.toLowerCase()
     const extension = file.name.split('.').pop()
     const filename = `${safeCompanyName}-${Date.now()}.${extension}`
     const filepath = join(process.cwd(), 'public', 'logos', filename)
 
     // Sauvegarder le fichier
     await writeFile(filepath, buffer)
+
+    // Mettre à jour la société avec le chemin du logo
+    await prisma.company.update({
+      where: { id: companyId },
+      data: { logoPath: `/logos/${filename}` }
+    })
 
     return NextResponse.json({
       message: 'Logo uploadé avec succès',
