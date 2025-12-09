@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { NavItem } from "@/components/layout/nav-item"
 import { 
   LayoutDashboard, 
   Laptop, 
@@ -12,7 +12,9 @@ import {
   Settings,
   LogOut,
   Monitor,
-  PackageOpen
+  PackageOpen,
+  FileText,
+  ChevronDown
 } from "lucide-react"
 import { signOut } from "@/lib/auth"
 import { cookies } from "next/headers"
@@ -72,24 +74,30 @@ export default async function DashboardLayout({
   }
 
   const navigation = [
-    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-    { name: "Machines", href: "/dashboard/machines", icon: Laptop },
-    { name: "Écrans", href: "/dashboard/screens", icon: Monitor },
-    { name: "Utilisateurs", href: "/dashboard/users", icon: Users },
-    { name: "Bons de livraison", href: "/dashboard/delivery-notes", icon: Package },
-    { name: "Bons de retour", href: "/dashboard/return-notes", icon: PackageOpen },
-    { name: "Installations", href: "/dashboard/installation", icon: ClipboardList },
-    { name: "Logiciels", href: "/dashboard/software", icon: AppWindow },
+    { name: "Dashboard", href: "/dashboard", icon: "LayoutDashboard" },
+    { name: "Machines", href: "/dashboard/machines", icon: "Laptop" },
+    { name: "Écrans", href: "/dashboard/screens", icon: "Monitor" },
+    { name: "Utilisateurs", href: "/dashboard/users", icon: "Users" },
+    { 
+      name: "Documents", 
+      icon: "FileText",
+      subItems: [
+        { name: "Bons de livraison", href: "/dashboard/delivery-notes", icon: "Package" },
+        { name: "Bons de retour", href: "/dashboard/return-notes", icon: "PackageOpen" },
+      ]
+    },
+    { name: "Installations", href: "/dashboard/installation", icon: "ClipboardList" },
+    { name: "Logiciels", href: "/dashboard/software", icon: "AppWindow" },
   ]
 
   // Ajouter l'admin pour les rôles appropriés
   if (session.user.role === 'super_admin' || session.user.role === 'company_admin') {
-    navigation.push({ name: "Administration", href: "/dashboard/admin", icon: Settings })
+    navigation.push({ name: "Administration", href: "/dashboard/admin", icon: "Settings" })
   }
 
   // Ajouter les paramètres système pour super_admin uniquement
   if (session.user.role === 'super_admin') {
-    navigation.push({ name: "Paramètres", href: "/dashboard/admin/settings", icon: Settings })
+    navigation.push({ name: "Paramètres", href: "/dashboard/admin/settings", icon: "Settings" })
   }
 
   return (
@@ -105,14 +113,13 @@ export default async function DashboardLayout({
           {/* Navigation */}
           <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
             {navigation.map((item) => (
-              <Link
+              <NavItem
                 key={item.name}
+                name={item.name}
                 href={item.href}
-                className="flex items-center px-3 py-2 text-sm font-medium rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                <item.icon className="w-5 h-5 mr-3" />
-                {item.name}
-              </Link>
+                icon={item.icon}
+                subItems={item.subItems}
+              />
             ))}
           </nav>
 
