@@ -92,18 +92,23 @@ export function SettingsForm() {
       toast.error("Veuillez entrer un nom de société")
       return
     }
-    
-    if (!newCompanyCode.trim()) {
-      toast.error("Veuillez entrer un code de société")
-      return
-    }
-    
     if (companies.some(c => c.name === newCompany.trim())) {
       toast.error("Cette société existe déjà")
       return
     }
 
-    if (companies.some(c => c.code === newCompanyCode.trim().toUpperCase())) {
+    // Generate a code if user didn't provide one. Keep it short and uppercase.
+    const slugify = (name: string) => {
+      const cleaned = name.replace(/[^a-zA-Z0-9 ]/g, '').trim()
+      if (!cleaned) return 'CMP'
+      const parts = cleaned.split(/\s+/)
+      if (parts.length === 1) return parts[0].substring(0, 4).toUpperCase()
+      return (parts[0].substring(0, 2) + parts[1].substring(0, 2)).substring(0,4).toUpperCase()
+    }
+
+    const code = newCompanyCode.trim() ? newCompanyCode.trim().toUpperCase() : slugify(newCompany)
+
+    if (companies.some(c => c.code && c.code === code)) {
       toast.error("Ce code de société existe déjà")
       return
     }
@@ -113,9 +118,9 @@ export function SettingsForm() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: newCompany.trim(),
-          code: newCompanyCode.trim().toUpperCase()
-        })
+            name: newCompany.trim(),
+            code
+          })
       })
 
       if (response.ok) {

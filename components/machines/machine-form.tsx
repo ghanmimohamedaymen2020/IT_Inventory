@@ -78,6 +78,7 @@ const machineSchema = z.object({
   purchaseDate: z.string().optional(),
   warrantyEndDate: z.string().optional(),
   assignedTo: z.string().optional(),
+  companyId: z.string().optional(),
   location: z.string().optional(),
   status: z.enum(["active", "maintenance", "retired", "storage"]).default("active"),
   notes: z.string().optional(),
@@ -97,6 +98,7 @@ export function MachineForm() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [users, setUsers] = useState<User[]>([])
+  const [companies, setCompanies] = useState<{ id: string; name: string; code?: string }[]>([])
   const [selectedType, setSelectedType] = useState<string>("")
   const [technicalSpecs, setTechnicalSpecs] = useState<Record<string, string>>({})
   const defaultTypes = ["Laptop", "Desktop", "Server", "Tablet"]
@@ -118,6 +120,12 @@ export function MachineForm() {
       .then(res => res.json())
       .then(data => setUsers(data.users || []))
       .catch(err => console.error('Erreur chargement utilisateurs:', err))
+
+    // Charger la liste des sociétés
+    fetch('/api/companies')
+      .then(res => res.json())
+      .then(data => setCompanies(data || []))
+      .catch(err => console.error('Erreur chargement sociétés:', err))
   }, [])
 
   const {
@@ -230,6 +238,25 @@ export function MachineForm() {
             {errors.brand && (
               <p className="text-sm text-red-500">{errors.brand.message}</p>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="companyId">Société</Label>
+            <Select
+              onValueChange={(value) => setValue('companyId', value)}
+              defaultValue={watch('companyId')}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Sélectionner une société (optionnel)" />
+              </SelectTrigger>
+              <SelectContent>
+                {companies.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name} {c.code ? `(${c.code})` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">

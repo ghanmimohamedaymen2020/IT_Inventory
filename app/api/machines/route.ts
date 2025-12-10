@@ -80,34 +80,66 @@ export async function POST(req: NextRequest) {
 
     const data = await req.json()
 
-    // Récupérer le code de la compagnie
-    const company = await prisma.company.findUnique({
-      where: { id: session.user.companyId }
-    })
+    // Déterminer la compagnie cible: utiliser `data.companyId` si fourni (avec contrôle),
+    // sinon utiliser la compagnie de la session utilisateur.
+    const requestedCompanyId = (data as any).companyId as string | undefined
 
-    if (!company) {
-      return NextResponse.json({ error: "Compagnie non trouvée" }, { status: 404 })
+    // Si l'utilisateur demande une autre compagnie, vérifier les permissions basiques
+    if (requestedCompanyId && requestedCompanyId !== session.user.companyId && session.user.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Permission refusée pour choisir cette société' }, { status: 403 })
     }
 
-    // Générer un code d'inventaire automatique
+    // Trouver la compagnie cible
+    let targetCompany = null
+    if (requestedCompanyId) {
+      targetCompany = await prisma.company.findUnique({ where: { id: requestedCompanyId } })
+      if (!targetCompany) {
+        return NextResponse.json({ error: 'Compagnie demandée introuvable' }, { status: 404 })
+      }
+    } else {
+      targetCompany = await prisma.company.findUnique({ where: { id: session.user.companyId } })
+      if (!targetCompany) {
+        // Si l'utilisateur n'a pas de compagnie rattachée, créer/associer une compagnie par défaut
+        console.warn(`POST /api/machines: compagnie introuvable pour user ${session.user.id}. Attachement à la compagnie par défaut.`)
+
+        let defaultCompany = await prisma.company.findFirst({ where: { name: 'Compagnie par défaut' } })
+        if (!defaultCompany) {
+          defaultCompany = await prisma.company.create({ data: { name: 'Compagnie par défaut', code: 'DEFAULT' } })
+        }
+
+        // Mettre à jour l'utilisateur pour l'attacher à la compagnie par défaut
+        try {
+          await prisma.user.update({ where: { id: session.user.id }, data: { companyId: defaultCompany.id } })
+        } catch (err) {
+          console.error("Impossible d'attacher l'utilisateur à la compagnie par défaut:", err)
+          return NextResponse.json({ error: "Erreur lors de l'attachement à la compagnie" }, { status: 500 })
+        }
+
+        targetCompany = defaultCompany
+      }
+    }
+
+    // Générer un code d'inventaire automatique en utilisant la compagnie cible.
+    const companyCode = targetCompany.code ?? targetCompany.id.substring(0, 4).toUpperCase()
+
     const sequence = await prisma.inventorySequence.upsert({
-      where: { 
+      where: {
         companyCode_assetType: {
-          companyCode: company.code,
+          companyCode,
           assetType: 'ASSET'
         }
       },
-      create: { 
-        companyCode: company.code,
+      create: {
+        companyCode,
         assetType: 'ASSET',
         lastNumber: 1
       },
-      update: { 
-        lastNumber: { increment: 1 } 
+      update: {
+        lastNumber: { increment: 1 }
       }
     })
 
-    const inventoryCode = `${company.code}-ASSET-${String(sequence.lastNumber).padStart(4, '0')}`
+    const inventoryCode = `${companyCode}-ASSET-${String(sequence.lastNumber).padStart(4, '0')}`
 
     // Créer la machine dans PostgreSQL
     const machine = await prisma.machine.create({
@@ -127,7 +159,7 @@ export async function POST(req: NextRequest) {
         assetStatus: data.status === 'active' ? 'en_service' : 
                      data.status === 'maintenance' ? 'maintenance' : 
                      data.status === 'storage' ? 'en_stock' : 'retiré',
-        companyId: session.user.companyId,
+        companyId: targetCompany.id,
       },
       include: {
         company: true

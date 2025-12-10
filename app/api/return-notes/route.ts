@@ -109,13 +109,33 @@ export async function POST(req: Request) {
       )
     }
 
-    const company = returnedByUser.company
+    let company = returnedByUser.company
 
     if (!company) {
-      return NextResponse.json(
-        { error: "Company invalide" },
-        { status: 400 }
-      )
+      // Créer ou récupérer une compagnie par défaut et rattacher l'utilisateur
+      console.warn(`POST /api/return-notes: user ${returnedByUser.id} has no company. Creating default company.`)
+
+      let defaultCompany = await prisma.company.findFirst({ where: { name: 'Compagnie par défaut' } })
+      if (!defaultCompany) {
+        defaultCompany = await prisma.company.create({ data: { name: 'Compagnie par défaut', code: 'DEFAULT' } })
+      }
+
+      try {
+        await prisma.user.update({ where: { id: returnedByUser.id }, data: { companyId: defaultCompany.id } })
+      } catch (err) {
+        console.error('Erreur rattachement compagnie par défaut à l\'utilisateur:', err)
+        return NextResponse.json({ error: 'Erreur interne' }, { status: 500 })
+      }
+
+      company = defaultCompany
+    }
+
+    // Ensure the session user exists in DB — if not, fall back to returnedByUser as creator
+    let creatorId = session.user.id
+    const creatorUser = await prisma.user.findUnique({ where: { id: session.user.id } })
+    if (!creatorUser) {
+      console.warn(`Session user ${session.user.id} not found; using returnedByUser as creator`)
+      creatorId = returnedByUser.id
     }
 
     // Générer un numéro de bon de retour séquentiel
@@ -145,8 +165,8 @@ export async function POST(req: Request) {
         reason: reason || null,
         destination,
         notes: notes || null,
-        companyId: returnedByUser.companyId,
-        createdById: session.user.id,
+        companyId: company.id,
+        createdById: creatorId,
         equipments: {
           create: equipments.map((eq: any) => ({
             type: eq.type,
