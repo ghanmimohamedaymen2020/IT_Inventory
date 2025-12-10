@@ -25,16 +25,16 @@ export default async function UserEditPage({ params }: PageProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Modifier l'utilisateur</h1>
-        <p className="text-muted-foreground mt-1">
+        <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight mb-1">Modifier l'utilisateur</h1>
+        <p className="text-xl font-medium text-gray-700 mb-2">
           Mettre à jour les informations de {user.firstName} {user.lastName}
         </p>
       </div>
 
-      <Card>
+      <Card className="bg-white shadow-sm">
         <CardHeader>
-          <CardTitle>Informations utilisateur</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-2xl font-bold text-gray-900">Informations utilisateur</CardTitle>
+          <CardDescription className="text-base text-gray-700">
             Modifiez les informations de l'utilisateur. Les champs avec * sont obligatoires.
           </CardDescription>
         </CardHeader>

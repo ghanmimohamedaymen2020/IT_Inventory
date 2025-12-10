@@ -68,12 +68,12 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Tableau de bord</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight mb-1">Tableau de bord</h1>
+          <p className="text-xl font-medium text-gray-700 mb-2">
             Bienvenue, {session.user.name || session.user.email}
           </p>
         </div>
-        <Badge variant="outline" className="text-sm">
+        <Badge variant="outline" className="text-base font-semibold">
           {session.user.role === 'super_admin' && 'Super Administrateur'}
           {session.user.role === 'company_admin' && 'Administrateur'}
           {session.user.role === 'viewer' && 'Lecteur'}
@@ -81,10 +81,10 @@ export default async function DashboardPage() {
       </div>
 
       {session.user.company && (
-        <Card className="bg-primary/5 border-primary/20">
+        <Card className="bg-white shadow-sm border-primary/20">
           <CardHeader>
-            <CardTitle className="text-lg">Compagnie</CardTitle>
-            <CardDescription className="text-base font-semibold">
+            <CardTitle className="text-2xl font-bold text-gray-900">Compagnie</CardTitle>
+            <CardDescription className="text-base text-gray-700 font-semibold">
               {session.user.company.name} ({session.user.company.code})
             </CardDescription>
           </CardHeader>
