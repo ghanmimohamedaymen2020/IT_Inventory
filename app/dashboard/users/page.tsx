@@ -1,12 +1,12 @@
-import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import Link from "next/link"
-import { Users as UsersIcon, Plus, Edit } from "lucide-react"
-import { ExportMenu } from "@/components/exports/export-menu"
-import { cookies } from "next/headers"
-import { jwtVerify } from "jose"
-import { prisma } from "@/lib/db"
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
+import { Users as UsersIcon, Plus, Edit } from "lucide-react";
+import { ExportMenu } from "@/components/exports/export-menu";
+import { cookies } from "next/headers";
+import { jwtVerify } from "jose";
+import { prisma } from "@/lib/db";
 import {
   Table,
   TableBody,
@@ -14,59 +14,61 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from "@/components/ui/table";
 
 async function getDevSession() {
-  const cookieStore = await cookies()
-  const devSession = cookieStore.get('dev-session')
-  
-  if (!devSession) return null
-  
+  const cookieStore = await cookies();
+  const devSession = cookieStore.get("dev-session");
+  if (!devSession) return null;
   try {
-    const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || "secret")
-    const { payload } = await jwtVerify(devSession.value, secret)
+    const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || "secret");
+    const { payload } = await jwtVerify(devSession.value, secret);
     return {
       user: {
         id: payload.sub as string,
         email: payload.email as string,
         role: payload.role as string,
         companyId: payload.companyId as string,
-      }
-    }
-  } catch (error) {
-    return null
+      },
+    };
+  } catch (err) {
+    return null;
   }
 }
 
-export default async function UsersPage() {
-  const session = await getDevSession()
-  
-  if (!session) {
-    return <div>Non autorisé</div>
+export default async function UsersPage({ searchParams }: { searchParams?: { page?: string } }) {
+  const session = await getDevSession();
+  if (!session) return <div>Non autorisé</div>;
+
+  const PAGE_SIZE = 20;
+  let page = 1;
+  if (searchParams?.page) {
+    const parsed = Number(searchParams.page);
+    if (!Number.isNaN(parsed) && parsed > 0 && parsed < 10000) page = parsed;
   }
 
-  // Récupérer les utilisateurs depuis PostgreSQL
+  const totalUsers = await prisma.user.count();
+  const totalPages = Math.max(1, Math.ceil(totalUsers / PAGE_SIZE));
+
   const users = await prisma.user.findMany({
-    include: {
-      company: true
-    },
-    orderBy: {
-      createdAt: 'desc'
-    }
-  })
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+    include: { company: true },
+    orderBy: { createdAt: "desc" },
+  });
 
   const getRoleBadge = (role: string) => {
     switch (role) {
-      case 'super_admin':
-        return <Badge variant="destructive">Super Admin</Badge>
-      case 'company_admin':
-        return <Badge>Admin</Badge>
-      case 'viewer':
-        return <Badge variant="secondary">Viewer</Badge>
+      case "super_admin":
+        return <Badge variant="destructive">Super Admin</Badge>;
+      case "company_admin":
+        return <Badge>Admin</Badge>;
+      case "viewer":
+        return <Badge variant="secondary">Viewer</Badge>;
       default:
-        return <Badge variant="outline">{role}</Badge>
+        return <Badge variant="outline">{role}</Badge>;
     }
-  }
+  };
 
   return (
     <div className="space-y-6">
@@ -79,18 +81,15 @@ export default async function UsersPage() {
           <ExportMenu data={users} filename="utilisateurs" type="users" />
           <Link href="/dashboard/users/create">
             <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Nouvel utilisateur
+              <Plus className="mr-2 h-4 w-4" /> Nouvel utilisateur
             </Button>
           </Link>
         </div>
       </div>
 
       <div className="flex items-center gap-4 mb-2">
-        {/* Filtres à ajouter ici si besoin, exemple : */}
         <select className="border rounded-md px-3 py-2 text-sm text-gray-700 bg-white">
           <option value="">Toutes les sociétés</option>
-          {/* ...autres options dynamiques... */}
         </select>
         <select className="border rounded-md px-3 py-2 text-sm text-gray-700 bg-white">
           <option value="">Tous les rôles</option>
@@ -98,7 +97,9 @@ export default async function UsersPage() {
           <option value="company_admin">Admin</option>
           <option value="viewer">Viewer</option>
         </select>
-        <span className="ml-auto text-sm text-muted-foreground">{users.length} résultat{users.length > 1 ? 's' : ''}</span>
+        <span className="ml-auto text-sm text-muted-foreground">
+          {users.length} résultat{users.length > 1 ? "s" : ""}
+        </span>
       </div>
 
       {users.length === 0 ? (
@@ -113,8 +114,7 @@ export default async function UsersPage() {
             </p>
             <Link href="/dashboard/users/create">
               <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Ajouter un utilisateur
+                <Plus className="mr-2 h-4 w-4" /> Ajouter un utilisateur
               </Button>
             </Link>
           </CardContent>
@@ -134,36 +134,23 @@ export default async function UsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((user) => (
+              {users.map((user: any) => (
                 <TableRow key={user.id} className="hover:bg-gray-50 transition">
-                  <TableCell className="text-gray-900 py-3">
-                    {user.firstName} {user.lastName}
-                  </TableCell>
-                  <TableCell className="text-base text-gray-600 py-3">
-                    {user.email}
-                  </TableCell>
-                  <TableCell className="text-base text-gray-600 py-3">
-                    {user.phone || '-'}
-                  </TableCell>
+                  <TableCell className="text-gray-900 py-3">{user.firstName} {user.lastName}</TableCell>
+                  <TableCell className="text-base text-gray-600 py-3">{user.email}</TableCell>
+                  <TableCell className="text-base text-gray-600 py-3">{user.phone || '-'}</TableCell>
                   <TableCell className="py-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-base text-gray-700 font-medium">{user.company.name}</span>
-                      <Badge variant="outline" className="text-xs font-semibold">
-                        {user.company.code}
-                      </Badge>
+                      <span className="text-base text-gray-700 font-medium">{user.company?.name}</span>
+                      <Badge variant="outline" className="text-xs font-semibold">{user.company?.code}</Badge>
                     </div>
                   </TableCell>
-                  <TableCell className="text-base text-gray-600 py-3">
-                    {user.department || '-'}
-                  </TableCell>
-                  <TableCell className="py-3">
-                    {getRoleBadge(user.role)}
-                  </TableCell>
+                  <TableCell className="text-base text-gray-600 py-3">{user.department || '-'}</TableCell>
+                  <TableCell className="py-3">{getRoleBadge(user.role)}</TableCell>
                   <TableCell className="text-right py-3">
                     <Link href={`/dashboard/users/${user.id}`}>
                       <Button variant="outline" size="sm">
-                        <Edit className="mr-2 h-4 w-4" />
-                        Modifier
+                        <Edit className="mr-2 h-4 w-4" /> Modifier
                       </Button>
                     </Link>
                   </TableCell>
@@ -171,8 +158,15 @@ export default async function UsersPage() {
               ))}
             </TableBody>
           </Table>
+          <div className="flex justify-end items-center gap-2 p-4">
+            <button className="px-3 py-1 border rounded disabled:opacity-50" disabled={page <= 1}>Précédent</button>
+            <span className="mx-2 text-sm">Page {page} / {totalPages}</span>
+            <button className="px-3 py-1 border rounded disabled:opacity-50" disabled={page >= totalPages}>Suivant</button>
+          </div>
         </div>
       )}
     </div>
-  )
+  );
 }
+
+

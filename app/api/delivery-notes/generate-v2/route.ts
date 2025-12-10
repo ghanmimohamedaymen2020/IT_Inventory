@@ -145,7 +145,8 @@ export async function POST(req: NextRequest) {
     doc.setTextColor(0, 0, 0)
 
     // Tableau des équipements
-    equipments.forEach((equipment: any, index: number) => {
+    for (let index = 0; index < equipments.length; index++) {
+      const equipment: any = equipments[index]
       // Vérifier si on a besoin d'une nouvelle page
       if (yPos > pageHeight - 80) {
         doc.addPage()
@@ -164,19 +165,33 @@ export async function POST(req: NextRequest) {
       
       yPos += 6
       doc.setFont('helvetica', 'normal')
-      
+
       // Description
       if (equipment.brand) {
         doc.text(`   Marque: ${equipment.brand}`, margin + 5, yPos)
         yPos += 5
       }
-      
+
       doc.text(`   Description: ${equipment.description}`, margin + 5, yPos)
       yPos += 5
-      
+
       doc.text(`   N° Série: ${equipment.serialNumber}`, margin + 5, yPos)
-      yPos += 10
-    })
+      yPos += 4
+
+      // Ajout du statut si l'équipement correspond à une machine retirée
+      try {
+        const existing = await prisma.machine.findUnique({ where: { serialNumber: equipment.serialNumber } })
+        if (existing && existing.assetStatus === 'retiré') {
+          doc.text(`   Statut: Matériel déjà retiré`, margin + 5, yPos)
+          yPos += 8
+        } else {
+          yPos += 6
+        }
+      } catch (err) {
+        console.warn('generate-v2: impossible de vérifier le statut de la machine', equipment.serialNumber, err)
+        yPos += 6
+      }
+    }
 
     // Section Signatures
     yPos = pageHeight - 60

@@ -42,8 +42,10 @@ export async function GET(req: NextRequest) {
     const statusFilter = searchParams.get('status')
 
     // Construire la requête avec filtres optionnels
+    // NOTE: retired machines should be visible on the machines page by default.
     const whereClause: any = {}
     if (statusFilter) {
+      // Si un filtre explicite est fourni, utiliser tel quel
       whereClause.assetStatus = statusFilter
     }
 
@@ -141,6 +143,20 @@ export async function POST(req: NextRequest) {
 
     const inventoryCode = `${companyCode}-ASSET-${String(sequence.lastNumber).padStart(4, '0')}`
 
+    // Déterminer l'assetStatus demandé et appliquer les règles de permission
+    const requestedStatus = (data as any).status as string | undefined
+    const assetStatus = requestedStatus === 'active' ? 'en_service' :
+                        requestedStatus === 'maintenance' ? 'maintenance' :
+                        requestedStatus === 'storage' ? 'en_stock' :
+                        requestedStatus === 'retiré' ? 'retiré' :
+                        // Par défaut, placer en stock plutôt que marquer retiré
+                        'en_stock'
+
+    // Seul un super_admin peut marquer une machine comme 'retiré'
+    if (assetStatus === 'retiré' && session.user.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Seul super_admin peut marquer une machine comme retirée' }, { status: 403 })
+    }
+
     // Créer la machine dans PostgreSQL
     const machine = await prisma.machine.create({
       data: {
@@ -156,9 +172,7 @@ export async function POST(req: NextRequest) {
         ram: data.ram,
         disk: data.storage,
         warrantyDate: data.warrantyEndDate ? new Date(data.warrantyEndDate) : null,
-        assetStatus: data.status === 'active' ? 'en_service' : 
-                     data.status === 'maintenance' ? 'maintenance' : 
-                     data.status === 'storage' ? 'en_stock' : 'retiré',
+        assetStatus,
         companyId: targetCompany.id,
       },
       include: {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { generateInventoryCode } from "@/lib/inventory"
 import jsPDF from "jspdf"
 import fs from "fs"
 import path from "path"
@@ -363,7 +364,8 @@ export async function POST(request: NextRequest) {
     yPos += 10
 
     // Pour chaque équipement (lignes du tableau)
-    equipments.forEach((equipment: any, index: number) => {
+    for (let index = 0; index < equipments.length; index++) {
+      const equipment: any = equipments[index]
       // Vérifier si on a assez d'espace, sinon nouvelle page
       if (yPos > pageHeight - 80) {
         doc.addPage()
@@ -410,10 +412,23 @@ export async function POST(request: NextRequest) {
         doc.setFontSize(8)
         doc.setTextColor(100, 100, 100)
 
-        let details = []
-        if (equipment.brand) details.push(equipment.brand)
-        if (equipment.model) details.push(equipment.model)
-        if (equipment.inventoryCode) details.push(`#${equipment.inventoryCode}`)
+        // Vérifier l'état réel en base pour afficher un message clair si retiré
+        let details: string[] = []
+        try {
+          const existing = await prisma.machine.findUnique({ where: { serialNumber: equipment.serialNumber } })
+          if (existing && existing.assetStatus === 'retiré') {
+            details = ['Matériel déjà retiré']
+          } else {
+            if (equipment.brand) details.push(equipment.brand)
+            if (equipment.model) details.push(equipment.model)
+            if (equipment.inventoryCode) details.push(`#${equipment.inventoryCode}`)
+          }
+        } catch (err) {
+          console.warn('generate-v3: impossible de vérifier le statut de la machine', equipment.serialNumber, err)
+          if (equipment.brand) details.push(equipment.brand)
+          if (equipment.model) details.push(equipment.model)
+          if (equipment.inventoryCode) details.push(`#${equipment.inventoryCode}`)
+        }
 
         if (details.length > 0) {
           doc.text(details.join(' • '), margin + 12, yPos)
@@ -437,7 +452,7 @@ export async function POST(request: NextRequest) {
       }
 
       yPos += lineHeight - 3
-    })
+    }
 
     yPos += 15
 
@@ -548,19 +563,137 @@ export async function POST(request: NextRequest) {
     fs.writeFileSync(filePath, pdfBuffer)
 
     // Mettre à jour les équipements dans la base de données
+    // Option B: créer les équipements manquants si demandé par l'utilisateur
+    for (const equipment of equipments) {
+      if (equipment.serialNumberStatus === 'not-found' && equipment.createIfMissing) {
+        // Require a company to generate inventory codes
+        if (!user.company) {
+          console.warn(`generate-v3: cannot create missing equipment ${equipment.serialNumber} — user has no company`)
+          continue
+        }
+
+        // Allow creation for any user that belongs to a company (company context required)
+
+        // Determine asset type for inventory code and create accordingly
+        try {
+          if (equipment.type === 'Écran') {
+            const inventoryCode = await generateInventoryCode((user.company.code || 'XX'), 'SCREEN')
+            try {
+              const created = await prisma.screen.create({
+                data: {
+                  serialNumber: equipment.serialNumber,
+                  brand: equipment.brand || '',
+                  model: equipment.model || '',
+                  inventoryCode,
+                  userId: userId,
+                  companyId: user.companyId || undefined,
+                }
+              })
+              equipment.inventoryCode = created.inventoryCode
+              equipment.foundData = created
+              equipment.serialNumberStatus = 'found'
+            } catch (err: any) {
+              if (err && err.code === 'P2002') {
+                const existing = await prisma.screen.findUnique({ where: { serialNumber: equipment.serialNumber } })
+                if (existing) {
+                  equipment.inventoryCode = existing.inventoryCode
+                  equipment.foundData = existing
+                  equipment.serialNumberStatus = 'found'
+                }
+              } else {
+                console.error(`Erreur création écran ${equipment.serialNumber}:`, err)
+              }
+            }
+          } else if (equipment.type === 'Laptop' || equipment.type === 'PC') {
+            const inventoryCode = await generateInventoryCode((user.company.code || 'XX'), 'ASSET')
+            try {
+              const created = await prisma.machine.create({
+                data: {
+                  serialNumber: equipment.serialNumber,
+                  machineName: equipment.description || equipment.type,
+                  vendor: equipment.brand || '',
+                  model: equipment.model || '',
+                  inventoryCode,
+                  userId: userId,
+                  assetStatus: 'en_service',
+                  companyId: user.companyId || undefined,
+                }
+              })
+              equipment.inventoryCode = created.inventoryCode
+              equipment.foundData = created
+              equipment.serialNumberStatus = 'found'
+            } catch (err: any) {
+              if (err && err.code === 'P2002') {
+                const existing = await prisma.machine.findUnique({ where: { serialNumber: equipment.serialNumber } })
+                if (existing) {
+                  equipment.inventoryCode = existing.inventoryCode
+                  equipment.foundData = existing
+                  equipment.serialNumberStatus = 'found'
+                }
+              } else {
+                console.error(`Erreur création machine ${equipment.serialNumber}:`, err)
+              }
+            }
+          } else {
+            // For peripherals / other types create a PERIPH inventory entry as a machine fallback
+            const inventoryCode = await generateInventoryCode((user.company.code || 'XX'), 'PERIPH')
+            try {
+              const created = await prisma.machine.create({
+                data: {
+                  serialNumber: equipment.serialNumber,
+                  machineName: equipment.description || equipment.type,
+                  vendor: equipment.brand || '',
+                  model: equipment.model || '',
+                  inventoryCode,
+                  userId: userId,
+                  assetStatus: 'en_service',
+                  companyId: user.companyId || undefined,
+                }
+              })
+              equipment.inventoryCode = created.inventoryCode
+              equipment.foundData = created
+              equipment.serialNumberStatus = 'found'
+            } catch (err: any) {
+              if (err && err.code === 'P2002') {
+                const existing = await prisma.machine.findUnique({ where: { serialNumber: equipment.serialNumber } })
+                if (existing) {
+                  equipment.inventoryCode = existing.inventoryCode
+                  equipment.foundData = existing
+                  equipment.serialNumberStatus = 'found'
+                }
+              } else {
+                console.error(`Erreur création périphérique ${equipment.serialNumber}:`, err)
+              }
+            }
+          }
+        } catch (err) {
+          console.error(`generate-v3: erreur lors de la création d'équipement manquant ${equipment.serialNumber}:`, err)
+        }
+      }
+    }
+
     // Assigner les machines et écrans à l'utilisateur
     for (const equipment of equipments) {
       if (equipment.serialNumberStatus === 'found' && equipment.foundData) {
         // Si c'est une machine (Laptop/PC)
         if ('machineName' in equipment.foundData) {
           try {
-            await prisma.machine.update({
-              where: { serialNumber: equipment.serialNumber },
-              data: { 
-                userId: userId,
-                assetStatus: 'en_service'
-              }
-            })
+            // Récupérer la machine existante pour vérifier le statut
+            const existing = await prisma.machine.findUnique({ where: { serialNumber: equipment.serialNumber } })
+            if (!existing) {
+              console.warn(`generate-v3: machine with serial ${equipment.serialNumber} not found, skipping update`)
+            } else if (existing.assetStatus === 'retiré') {
+              // Ne pas modifier une machine retirée
+              console.warn(`generate-v3: machine ${existing.id} (serial ${equipment.serialNumber}) est retirée — mise à jour ignorée`)
+            } else {
+              await prisma.machine.update({
+                where: { serialNumber: equipment.serialNumber },
+                data: {
+                  userId: userId,
+                  assetStatus: 'en_service'
+                }
+              })
+            }
           } catch (error) {
             console.error(`Erreur mise à jour machine ${equipment.serialNumber}:`, error)
           }

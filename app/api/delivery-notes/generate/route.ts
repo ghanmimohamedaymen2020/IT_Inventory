@@ -144,6 +144,7 @@ export async function POST(req: NextRequest) {
       ['Disque:', machine.disk || 'N/A'],
       ['Date d\'Acquisition:', machine.acquisitionDate ? new Date(machine.acquisitionDate).toLocaleDateString('fr-FR') : 'N/A'],
       ['Garantie:', machine.warrantyDate ? new Date(machine.warrantyDate).toLocaleDateString('fr-FR') : 'N/A'],
+      ['Statut:', machine.assetStatus === 'retiré' ? 'Retiré (matériel déjà retiré)' : (machine.assetStatus || 'N/A')],
     ]
 
     machineInfo.forEach(([label, value]) => {
@@ -188,14 +189,22 @@ export async function POST(req: NextRequest) {
     const pdfBuffer = doc.output('arraybuffer')
     fs.writeFileSync(filePath, Buffer.from(pdfBuffer))
 
-    // Mettre à jour la machine avec l'utilisateur
-    await prisma.machine.update({
-      where: { id: machineId },
-      data: {
-        userId: userId,
-        assetStatus: 'en_service',
+    // Mettre à jour la machine avec l'utilisateur, sauf si la machine est retirée
+    try {
+      if (machine.assetStatus === 'retiré') {
+        console.warn(`generate: machine ${machineId} est retirée — mise à jour skipped`)
+      } else {
+        await prisma.machine.update({
+          where: { id: machineId },
+          data: {
+            userId: userId,
+            assetStatus: 'en_service',
+          }
+        })
       }
-    })
+    } catch (err) {
+      console.error(`Erreur lors de la mise à jour de la machine ${machineId}:`, err)
+    }
 
     return NextResponse.json({
       success: true,

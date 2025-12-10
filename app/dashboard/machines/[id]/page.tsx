@@ -60,6 +60,9 @@ export default async function MachineEditPage({
     notFound()
   }
 
+  // Si la machine est marquée comme retirée, ne pas permettre la modification
+  const isRetired = machine.assetStatus === 'retiré'
+
   // Récupérer l'historique des bons de livraison contenant cette machine
   const deliveryHistory = await prisma.deliveryNoteEquipment.findMany({
     where: {
@@ -133,8 +136,14 @@ export default async function MachineEditPage({
         </p>
       </div>
 
-      <MachineEditForm machine={machine} />
-      
+      {isRetired ? (
+        <div className="p-4 border rounded bg-yellow-50">
+          <p className="text-sm text-yellow-800">Cette machine est marquée comme <strong>retirée</strong> et ne peut plus être modifiée ou réutilisée.</p>
+        </div>
+      ) : (
+        <MachineEditForm machine={machine} />
+      )}
+
       <EquipmentHistory 
         history={combinedHistory}
         equipmentType="Machine"

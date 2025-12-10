@@ -44,7 +44,14 @@ async function resolveSession() {
 
 export async function GET() {
   try {
+    // Exclure les écrans attachés à des machines retirées pour éviter réutilisation/affichage
     const screens = await prisma.screen.findMany({
+      where: {
+        OR: [
+          { machineId: null },
+          { machine: { assetStatus: { not: 'retiré' } } },
+        ],
+      },
       include: {
         machine: {
           select: {

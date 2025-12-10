@@ -36,7 +36,7 @@ export default async function MachinesPage() {
     return <div>Non autorisé</div>
   }
 
-  // Récupérer les machines depuis PostgreSQL
+  // Récupérer les machines depuis PostgreSQL (inclut maintenant les machines retirées)
   const machines = await prisma.machine.findMany({
     include: {
       company: true,

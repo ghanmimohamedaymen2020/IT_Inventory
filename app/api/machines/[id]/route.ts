@@ -48,6 +48,16 @@ export async function PATCH(
       return NextResponse.json({ error: "Machine non trouvée" }, { status: 404 })
     }
 
+    // Refuser toute modification d'une machine déjà retirée pour les non-super_admin
+    if (existingMachine.assetStatus === 'retiré' && session.user.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Cette machine est retirée et ne peut pas être modifiée' }, { status: 403 })
+    }
+
+    // Empêcher les utilisateurs non-super_admin de marquer une machine comme retirée
+    if (data.assetStatus === 'retiré' && session.user.role !== 'super_admin') {
+      return NextResponse.json({ error: "Seul super_admin peut marquer une machine comme retirée" }, { status: 403 })
+    }
+
     // Mettre à jour la machine
     const machine = await prisma.machine.update({
       where: { id },
@@ -119,6 +129,11 @@ export async function DELETE(
 
     if (!existingMachine) {
       return NextResponse.json({ error: "Machine non trouvée" }, { status: 404 })
+    }
+
+    // Refuser la suppression d'une machine retirée pour les non-super_admin (protection)
+    if (existingMachine.assetStatus === 'retiré' && session.user.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Cette machine est retirée et ne peut pas être supprimée' }, { status: 403 })
     }
 
     // Supprimer la machine

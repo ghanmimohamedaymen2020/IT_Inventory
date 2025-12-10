@@ -66,6 +66,8 @@ interface Equipment {
   // Indicateur si déjà assigné
   alreadyAssigned?: boolean
   assignedToUser?: string
+  // Option to create the equipment on generate when serial not found
+  createIfMissing?: boolean
 }
 
 export function DeliveryNoteFormV3() {
@@ -228,10 +230,15 @@ export function DeliveryNoteFormV3() {
           inventoryCode: undefined,
           foundData: null,
           alreadyAssigned: false,
-          assignedToUser: undefined
+          assignedToUser: undefined,
+          createIfMissing: false
         }
       }
     }))
+  }
+
+  const toggleCreateIfMissing = (id: string, value: boolean) => {
+    setEquipments(equipments.map(e => e.id === id ? { ...e, createIfMissing: value } : e))
   }
 
   const handleGenerate = async () => {
@@ -265,6 +272,21 @@ export function DeliveryNoteFormV3() {
         `Impossible de générer le bon de livraison. Ces équipements sont déjà assignés: ${equipmentsList}`,
         { duration: 8000 }
       )
+      return
+    }
+
+    // If any equipment is retired, do not generate the delivery note
+    const retiredEquipments = equipments.filter(e => (e.foundData as any)?.assetStatus === 'retiré')
+    if (retiredEquipments.length > 0) {
+      toast.error("Impossible de générer le bon : un ou plusieurs équipements sont marqués 'retiré'.")
+      return
+    }
+
+    // If there are serial numbers not found, block generation and show a clear error
+    const notFoundEquipments = equipments.filter(e => e.serialNumberStatus === 'not-found')
+    if (notFoundEquipments.length > 0) {
+      const list = notFoundEquipments.map(e => `- ${e.type}: ${e.serialNumber}`).join('\n')
+      toast.error(`Impossible de générer le bon : les numéros de série suivants ne sont pas trouvés :\n${list}`)
       return
     }
 
@@ -403,6 +425,9 @@ export function DeliveryNoteFormV3() {
                 <p className="text-sm text-yellow-800 dark:text-yellow-200">
                   ⚠️ Numéro de série <strong>{equipment.serialNumber}</strong> non trouvé dans la base de données.
                 </p>
+                    <div className="mt-2">
+                      <p className="text-sm text-yellow-800 dark:text-yellow-200">Le numéro de série n'existe pas dans la base. Créez d'abord l'équipement dans l'inventaire (page de gestion des machines/écrans) avant de générer le bon de livraison.</p>
+                    </div>
               </div>
             )}
 
@@ -420,51 +445,109 @@ export function DeliveryNoteFormV3() {
             )}
 
             {/* Informations auto-complétées si trouvé ET non assigné */}
-            {equipment.serialNumberStatus === 'found' && equipment.foundData && !equipment.alreadyAssigned && (
-              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 space-y-2">
-                <p className="text-sm font-semibold text-green-800 dark:text-green-200">
-                  ✓ Équipement trouvé dans la base de données
-                </p>
-                <div className="grid gap-2 text-sm text-green-700 dark:text-green-300">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <span className="font-medium">Marque:</span> {equipment.brand}
+            {equipment.serialNumberStatus === 'found' && equipment.foundData && (
+              (() => {
+                // If the equipment is marked 'retiré' in the DB, render a warning note instead
+                if ((equipment.foundData as any).assetStatus === 'retiré') {
+                  return (
+                    <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 space-y-2">
+                      <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-200">
+                        ⚠️ Matériel déjà retiré
+                      </p>
+                      <div className="grid gap-2 text-sm text-yellow-700 dark:text-yellow-300">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <span className="font-medium">Marque:</span> {equipment.brand}
+                          </div>
+                          <div>
+                            <span className="font-medium">Modèle:</span> {equipment.model}
+                          </div>
+                        </div>
+                        {equipment.description && (
+                          <div>
+                            <span className="font-medium">Description:</span> {equipment.description}
+                          </div>
+                        )}
+                        {equipment.inventoryCode && (
+                          <div>
+                            <span className="font-medium">Code inventaire:</span> {equipment.inventoryCode}
+                          </div>
+                        )}
+                        {'machineName' in equipment.foundData && (
+                          <div className="grid grid-cols-3 gap-2 mt-2 pt-2 border-t border-yellow-300 dark:border-yellow-700">
+                            { (equipment.foundData as any).cpu && (
+                              <div>
+                                <span className="font-medium">CPU:</span> {(equipment.foundData as any).cpu}
+                              </div>
+                            )}
+                            { (equipment.foundData as any).ram && (
+                              <div>
+                                <span className="font-medium">RAM:</span> {(equipment.foundData as any).ram}
+                              </div>
+                            )}
+                            { (equipment.foundData as any).disk && (
+                              <div>
+                                <span className="font-medium">Disque:</span> {(equipment.foundData as any).disk}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <div className="text-sm text-yellow-700 dark:text-yellow-300 mt-2">
+                          Le statut restera <strong>retiré</strong> dans la base de données; la génération du bon n'activera pas cet équipement.
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <span className="font-medium">Modèle:</span> {equipment.model}
+                  )
+                }
+
+                // Default: regular found block (green) but still show when alreadyAssigned false/true
+                return (
+                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 space-y-2">
+                    <p className="text-sm font-semibold text-green-800 dark:text-green-200">
+                      ✓ Équipement trouvé dans la base de données
+                    </p>
+                    <div className="grid gap-2 text-sm text-green-700 dark:text-green-300">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="font-medium">Marque:</span> {equipment.brand}
+                        </div>
+                        <div>
+                          <span className="font-medium">Modèle:</span> {equipment.model}
+                        </div>
+                      </div>
+                      {equipment.description && (
+                        <div>
+                          <span className="font-medium">Description:</span> {equipment.description}
+                        </div>
+                      )}
+                      {equipment.inventoryCode && (
+                        <div>
+                          <span className="font-medium">Code inventaire:</span> {equipment.inventoryCode}
+                        </div>
+                      )}
+                      {'machineName' in equipment.foundData && (
+                        <div className="grid grid-cols-3 gap-2 mt-2 pt-2 border-t border-green-300 dark:border-green-700">
+                          {equipment.foundData.cpu && (
+                            <div>
+                              <span className="font-medium">CPU:</span> {equipment.foundData.cpu}
+                            </div>
+                          )}
+                          {equipment.foundData.ram && (
+                            <div>
+                              <span className="font-medium">RAM:</span> {equipment.foundData.ram}
+                            </div>
+                          )}
+                          {equipment.foundData.disk && (
+                            <div>
+                              <span className="font-medium">Disque:</span> {equipment.foundData.disk}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  {equipment.description && (
-                    <div>
-                      <span className="font-medium">Description:</span> {equipment.description}
-                    </div>
-                  )}
-                  {equipment.inventoryCode && (
-                    <div>
-                      <span className="font-medium">Code inventaire:</span> {equipment.inventoryCode}
-                    </div>
-                  )}
-                  {'machineName' in equipment.foundData && (
-                    <div className="grid grid-cols-3 gap-2 mt-2 pt-2 border-t border-green-300 dark:border-green-700">
-                      {equipment.foundData.cpu && (
-                        <div>
-                          <span className="font-medium">CPU:</span> {equipment.foundData.cpu}
-                        </div>
-                      )}
-                      {equipment.foundData.ram && (
-                        <div>
-                          <span className="font-medium">RAM:</span> {equipment.foundData.ram}
-                        </div>
-                      )}
-                      {equipment.foundData.disk && (
-                        <div>
-                          <span className="font-medium">Disque:</span> {equipment.foundData.disk}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
+                )
+              })()
             )}
           </div>
         ))}
@@ -514,6 +597,16 @@ export function DeliveryNoteFormV3() {
             </p>
           </div>
         )}
+
+        {equipments.some(e => (e.foundData as any)?.assetStatus === 'retiré') && (
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+            <p className="text-sm text-yellow-800 dark:text-yellow-200 font-semibold">
+              ⚠️ Un ou plusieurs équipements sont marqués <strong>retiré</strong>
+            </p>
+            <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">Le bon de livraison ne peut pas être généré pour des matériels retirés. Restaurez l'équipement avant de générer le bon ou demandez à un administrateur.</p>
+          </div>
+        )}
+
         <div className="flex justify-end gap-2">
           <Button
             type="button"
@@ -527,19 +620,31 @@ export function DeliveryNoteFormV3() {
             type="button"
             onClick={(e) => {
               const hasAssigned = equipments.some(eq => eq.alreadyAssigned)
-              console.log('🔍 Equipments:', equipments)
-              console.log('🔍 Has assigned?', hasAssigned)
+              const hasRetired = equipments.some(eq => (eq.foundData as any)?.assetStatus === 'retiré')
+              const hasNotFound = equipments.some(eq => eq.serialNumberStatus === 'not-found')
               if (hasAssigned) {
                 e.preventDefault()
                 e.stopPropagation()
                 toast.error("Impossible de générer le bon de livraison : un ou plusieurs équipements sont déjà assignés")
                 return false
               }
+              if (hasRetired) {
+                e.preventDefault()
+                e.stopPropagation()
+                toast.error("Impossible de générer le bon : un ou plusieurs équipements sont retirés. Restaurez-les d'abord.")
+                return false
+              }
+              if (hasNotFound) {
+                e.preventDefault()
+                e.stopPropagation()
+                toast.error("Impossible de générer le bon : un ou plusieurs numéros de série ne sont pas trouvés. Créez d'abord les équipements dans l'inventaire.")
+                return false
+              }
               handleGenerate()
             }}
-            disabled={isLoading || equipments.some(e => e.alreadyAssigned === true)}
-            aria-disabled={equipments.some(e => e.alreadyAssigned === true)}
-            data-disabled={equipments.some(e => e.alreadyAssigned === true)}
+            disabled={isLoading || equipments.some(e => e.alreadyAssigned === true) || equipments.some(e => (e.foundData as any)?.assetStatus === 'retiré') || equipments.some(e => e.serialNumberStatus === 'not-found')}
+            aria-disabled={equipments.some(e => e.alreadyAssigned === true) || equipments.some(e => (e.foundData as any)?.assetStatus === 'retiré') || equipments.some(e => e.serialNumberStatus === 'not-found')}
+            data-disabled={equipments.some(e => e.alreadyAssigned === true) || equipments.some(e => (e.foundData as any)?.assetStatus === 'retiré') || equipments.some(e => e.serialNumberStatus === 'not-found')}
           >
             {isLoading ? "Génération..." : "Générer le bon de livraison"}
           </Button>
