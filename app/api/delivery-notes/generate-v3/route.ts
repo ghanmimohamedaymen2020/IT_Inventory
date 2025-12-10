@@ -3,6 +3,110 @@ import { prisma } from "@/lib/db"
 import jsPDF from "jspdf"
 import fs from "fs"
 import path from "path"
+import Jimp from "jimp"
+
+// Small k-means based dominant color extractor (returns array of RGB arrays)
+async function extractDominantColorsFromImage(imgPath: string, k = 3, sampleLimit = 1500) {
+  try {
+    const img = await Jimp.read(imgPath)
+    img.resize(40, 40)
+
+    const pixels: number[][] = []
+    for (let x = 0; x < img.bitmap.width; x++) {
+      for (let y = 0; y < img.bitmap.height; y++) {
+        const rgba = Jimp.intToRGBA(img.getPixelColor(x, y))
+        if (rgba.a === 0) continue
+        // ignore near-white
+        if (rgba.r > 240 && rgba.g > 240 && rgba.b > 240) continue
+        pixels.push([rgba.r, rgba.g, rgba.b])
+      }
+    }
+
+    if (pixels.length === 0) return null
+
+    // downsample if necessary
+    let sample = pixels
+    if (pixels.length > sampleLimit) {
+      const step = Math.max(1, Math.floor(pixels.length / sampleLimit))
+      sample = pixels.filter((_, i) => i % step === 0).slice(0, sampleLimit)
+    }
+
+    // init centers randomly
+    const centers: number[][] = []
+    const used = new Set<number>()
+    while (centers.length < k && used.size < sample.length) {
+      const idx = Math.floor(Math.random() * sample.length)
+      if (!used.has(idx)) {
+        used.add(idx)
+        centers.push(sample[idx].slice())
+      }
+    }
+
+    const maxIter = 8
+    for (let iter = 0; iter < maxIter; iter++) {
+      const sums = Array(centers.length).fill(0).map(() => [0, 0, 0])
+      const counts = Array(centers.length).fill(0)
+
+      for (const p of sample) {
+        // nearest center
+        let best = 0
+        let bestDist = Infinity
+        for (let c = 0; c < centers.length; c++) {
+          const dx = p[0] - centers[c][0]
+          const dy = p[1] - centers[c][1]
+          const dz = p[2] - centers[c][2]
+          const d = dx * dx + dy * dy + dz * dz
+          if (d < bestDist) {
+            bestDist = d
+            best = c
+          }
+        }
+        sums[best][0] += p[0]
+        sums[best][1] += p[1]
+        sums[best][2] += p[2]
+        counts[best]++
+      }
+
+      let moved = false
+      for (let c = 0; c < centers.length; c++) {
+        if (counts[c] === 0) continue
+        const nr = Math.round(sums[c][0] / counts[c])
+        const ng = Math.round(sums[c][1] / counts[c])
+        const nb = Math.round(sums[c][2] / counts[c])
+        if (nr !== centers[c][0] || ng !== centers[c][1] || nb !== centers[c][2]) {
+          centers[c] = [nr, ng, nb]
+          moved = true
+        }
+      }
+      if (!moved) break
+    }
+
+    // compute final counts
+    const finalCounts = Array(centers.length).fill(0)
+    for (const p of sample) {
+      let best = 0
+      let bestDist = Infinity
+      for (let c = 0; c < centers.length; c++) {
+        const dx = p[0] - centers[c][0]
+        const dy = p[1] - centers[c][1]
+        const dz = p[2] - centers[c][2]
+        const d = dx * dx + dy * dy + dz * dz
+        if (d < bestDist) {
+          bestDist = d
+          best = c
+        }
+      }
+      finalCounts[best]++
+    }
+
+    const clusters = centers.map((c, i) => ({ center: c, count: finalCounts[i] }))
+    clusters.sort((a, b) => b.count - a.count)
+    return clusters.map(c => c.center)
+  } catch (err) {
+    console.warn('extractDominantColorsFromImage failed', imgPath, err)
+    return null
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -54,15 +158,83 @@ export async function POST(request: NextRequest) {
           const logoExt = path.extname(user.company.logoPath).toLowerCase()
           logoFormat = logoExt === ".png" ? "PNG" : "JPEG"
 
-          // Couleurs prédéfinies par société
-          const companyColors: { [key: string]: { primary: number[], accent: number[] } } = {
-            'GREEN': { primary: [27, 94, 32], accent: [76, 175, 80] },
-            'TRANS': { primary: [13, 71, 161], accent: [33, 150, 243] },
+          // sidecar color file next to the logo (explicit override)
+          const logoBase = user.company.logoPath.replace(/\.[^/.]+$/, "")
+          const sidecarPath = path.join(process.cwd(), "public", `${logoBase}.color.json`)
+          let colorsResolved = false
+
+          if (fs.existsSync(sidecarPath)) {
+            try {
+              const raw = fs.readFileSync(sidecarPath, "utf8")
+              const parsed = JSON.parse(raw)
+              if (parsed.primary && parsed.accent && Array.isArray(parsed.primary) && Array.isArray(parsed.accent)) {
+                primaryColor = parsed.primary
+                accentColor = parsed.accent
+                colorsResolved = true
+              } else if (parsed.color && typeof parsed.color === 'string') {
+                const hex = parsed.color.replace(/^#/, '')
+                if (/^[0-9A-Fa-f]{6}$/.test(hex)) {
+                  const r = parseInt(hex.substring(0,2), 16)
+                  const g = parseInt(hex.substring(2,4), 16)
+                  const b = parseInt(hex.substring(4,6), 16)
+                  primaryColor = [r,g,b]
+                  accentColor = [Math.min(255, r + 40), Math.min(255, g + 40), Math.min(255, b + 40)]
+                  colorsResolved = true
+                }
+              }
+            } catch (err) {
+              console.warn('Impossible de parser la sidecar couleur:', sidecarPath, err)
+            }
           }
 
-          if (user.company.code && companyColors[user.company.code]) {
-            primaryColor = companyColors[user.company.code].primary
-            accentColor = companyColors[user.company.code].accent
+          // If no sidecar, try dominant color extraction (k-means)
+          if (!colorsResolved) {
+            try {
+              const centers = await extractDominantColorsFromImage(logoPath, 3)
+              if (centers && centers.length > 0) {
+                primaryColor = centers[0].map((v: number) => Math.round(v))
+                if (centers.length > 1) {
+                  accentColor = centers[1].map((v: number) => Math.round(v))
+                } else {
+                  const [r, g, b] = primaryColor
+                  accentColor = [Math.min(255, r + 40), Math.min(255, g + 40), Math.min(255, b + 40)]
+                }
+                colorsResolved = true
+              }
+            } catch (err) {
+              console.warn('Dominant color extraction failed for', logoPath, err)
+            }
+          }
+
+          // final fallback: map by company code
+          if (!colorsResolved) {
+            const companyColors: { [key: string]: { primary: number[], accent: number[] } } = {
+              'GREEN': { primary: [27, 94, 32], accent: [76, 175, 80] },
+              'TRANS': { primary: [0, 0, 0], accent: [220, 18, 18] },
+            }
+            const codeKey = user.company?.code ? user.company.code.toUpperCase() : null
+            if (codeKey && companyColors[codeKey]) {
+              primaryColor = companyColors[codeKey].primary
+              accentColor = companyColors[codeKey].accent
+              colorsResolved = true
+            }
+          }
+
+          // Explicit override for Transglory: ensure black primary + red accent
+          if (user.company?.code) {
+            const code = user.company.code.toUpperCase();
+            if (code === 'TRANS') {
+              primaryColor = [0, 0, 0];
+              accentColor = [220, 18, 18];
+              colorsResolved = true;
+            }
+            // Force TRTU to use solid Transglory blue everywhere (no mixing)
+            if (code === 'TRTU') {
+              // Transglory blue: #1A237E
+              primaryColor = [26, 35, 126];
+              accentColor = [26, 35, 126];
+              colorsResolved = true;
+            }
           }
         }
       } catch (error) {
@@ -420,7 +592,7 @@ export async function POST(request: NextRequest) {
         pdfPath: `/delivery-notes/${fileName}`,
         notes: notes || '',
         equipments: {
-          create: equipments.map((equipment) => ({
+          create: equipments.map((equipment: any) => ({
             type: equipment.type,
             serialNumber: equipment.serialNumber,
             brand: equipment.brand || '',

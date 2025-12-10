@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server"
 import { PrismaClient } from "@prisma/client"
 import { auth } from "@/lib/auth"
@@ -6,6 +7,96 @@ import { jwtVerify } from "jose"
 import jsPDF from "jspdf"
 import fs from "fs"
 import path from "path"
+import Jimp from "jimp"
+
+// Color extraction helper (function, not top-level code)
+async function extractDominantColorsFromImage(imgPath: string, k = 3, sampleLimit = 1500) {
+  try {
+    const img = await Jimp.read(imgPath)
+    img.resize(40, 40)
+    const pixels: number[][] = []
+    for (let x = 0; x < img.bitmap.width; x++) {
+      for (let y = 0; y < img.bitmap.height; y++) {
+        const rgba = Jimp.intToRGBA(img.getPixelColor(x, y))
+        if (rgba.a === 0) continue
+        if (rgba.r > 240 && rgba.g > 240 && rgba.b > 240) continue
+        pixels.push([rgba.r, rgba.g, rgba.b])
+      }
+    }
+    if (pixels.length === 0) return null
+    let sample = pixels
+    if (pixels.length > sampleLimit) {
+      const step = Math.max(1, Math.floor(pixels.length / sampleLimit))
+      sample = pixels.filter((_, i) => i % step === 0).slice(0, sampleLimit)
+    }
+    const centers: number[][] = []
+    const used = new Set<number>()
+    while (centers.length < k && used.size < sample.length) {
+      const idx = Math.floor(Math.random() * sample.length)
+      if (!used.has(idx)) {
+        used.add(idx)
+        centers.push(sample[idx].slice())
+      }
+    }
+    const maxIter = 8
+    for (let iter = 0; iter < maxIter; iter++) {
+      const sums = Array(centers.length).fill(0).map(() => [0, 0, 0])
+      const counts = Array(centers.length).fill(0)
+      for (const p of sample) {
+        let best = 0
+        let bestDist = Infinity
+        for (let c = 0; c < centers.length; c++) {
+          const dx = p[0] - centers[c][0]
+          const dy = p[1] - centers[c][1]
+          const dz = p[2] - centers[c][2]
+          const d = dx * dx + dy * dy + dz * dz
+          if (d < bestDist) {
+            bestDist = d
+            best = c
+          }
+        }
+        sums[best][0] += p[0]
+        sums[best][1] += p[1]
+        sums[best][2] += p[2]
+        counts[best]++
+      }
+      let moved = false
+      for (let c = 0; c < centers.length; c++) {
+        if (counts[c] === 0) continue
+        const nr = Math.round(sums[c][0] / counts[c])
+        const ng = Math.round(sums[c][1] / counts[c])
+        const nb = Math.round(sums[c][2] / counts[c])
+        if (nr !== centers[c][0] || ng !== centers[c][1] || nb !== centers[c][2]) {
+          centers[c] = [nr, ng, nb]
+          moved = true
+        }
+      }
+      if (!moved) break
+    }
+    const finalCounts = Array(centers.length).fill(0)
+    for (const p of sample) {
+      let best = 0
+      let bestDist = Infinity
+      for (let c = 0; c < centers.length; c++) {
+        const dx = p[0] - centers[c][0]
+        const dy = p[1] - centers[c][1]
+        const dz = p[2] - centers[c][2]
+        const d = dx * dx + dy * dy + dz * dz
+        if (d < bestDist) {
+          bestDist = d
+          best = c
+        }
+      }
+      finalCounts[best]++
+    }
+    const clusters = centers.map((c, i) => ({ center: c, count: finalCounts[i] }))
+    clusters.sort((a, b) => b.count - a.count)
+    return clusters.map(c => c.center)
+  } catch (err) {
+    console.warn('extractDominantColorsFromImage failed', imgPath, err)
+    return null
+  }
+}
 
 const prisma = new PrismaClient()
 
@@ -113,7 +204,7 @@ export async function POST(req: Request) {
 
     if (!company) {
       // Créer ou récupérer une compagnie par défaut et rattacher l'utilisateur
-      console.warn(`POST /api/return-notes: user ${returnedByUser.id} has no company. Creating default company.`)
+      console.warn(`POST /api/return-notes: user ${returnedByUser.id} has no company. Creating default company.`);
 
       let defaultCompany = await prisma.company.findFirst({ where: { name: 'Compagnie par défaut' } })
       if (!defaultCompany) {
@@ -134,7 +225,7 @@ export async function POST(req: Request) {
     let creatorId = session.user.id
     const creatorUser = await prisma.user.findUnique({ where: { id: session.user.id } })
     if (!creatorUser) {
-      console.warn(`Session user ${session.user.id} not found; using returnedByUser as creator`)
+      console.warn(`Session user ${session.user.id} not found; using returnedByUser as creator`);
       creatorId = returnedByUser.id
     }
 
@@ -228,14 +319,89 @@ export async function POST(req: Request) {
           const logoExt = path.extname(company.logoPath).toLowerCase()
           logoFormat = logoExt === ".png" ? "PNG" : "JPEG"
 
-          const companyColors: { [key: string]: { primary: number[], accent: number[] } } = {
-            'GREEN': { primary: [27, 94, 32], accent: [76, 175, 80] },
-            'TRANS': { primary: [13, 71, 161], accent: [33, 150, 243] },
+          // Try to load a sidecar color file next to the logo
+          const logoBase = company.logoPath.replace(/\.[^/.]+$/, "")
+          const sidecarPath = path.join(process.cwd(), "public", `${logoBase}.color.json`)
+          let colorsResolved = false
+          if (fs.existsSync(sidecarPath)) {
+            try {
+              const raw = fs.readFileSync(sidecarPath, "utf8")
+              const parsed = JSON.parse(raw)
+              if (parsed.primary && parsed.accent && Array.isArray(parsed.primary) && Array.isArray(parsed.accent)) {
+                primaryColor = parsed.primary
+                accentColor = parsed.accent
+                colorsResolved = true
+              } else if (parsed.color && typeof parsed.color === 'string') {
+                const hex = parsed.color.replace(/^#/, '')
+                if (/^[0-9A-Fa-f]{6}$/.test(hex)) {
+                  const r = parseInt(hex.substring(0,2), 16)
+                  const g = parseInt(hex.substring(2,4), 16)
+                  const b = parseInt(hex.substring(4,6), 16)
+                  primaryColor = [r,g,b]
+                  accentColor = [Math.min(255, r + 40), Math.min(255, g + 40), Math.min(255, b + 40)]
+                  colorsResolved = true
+                }
+              }
+            } catch (err) {
+              console.warn('Impossible de parser la sidecar couleur:', sidecarPath, err)
+            }
           }
 
-          if (company.code && companyColors[company.code]) {
-            primaryColor = companyColors[company.code].primary
-            accentColor = companyColors[company.code].accent
+          if (!colorsResolved) {
+            try {
+              const img = await Jimp.read(logoPath)
+              img.resize(20, 20)
+              let r = 0, g = 0, b = 0, count = 0
+              for (let x = 0; x < img.bitmap.width; x++) {
+                for (let y = 0; y < img.bitmap.height; y++) {
+                  const rgba = Jimp.intToRGBA(img.getPixelColor(x, y))
+                  // ignore fully transparent pixels
+                  if (rgba.a === 0) continue
+                  // ignore near-white pixels (likely background)
+                  if (rgba.r > 240 && rgba.g > 240 && rgba.b > 240) continue
+                  r += rgba.r
+                  g += rgba.g
+                  b += rgba.b
+                  count++
+                }
+              }
+              if (count > 0) {
+                const avgR = Math.round(r / count)
+                const avgG = Math.round(g / count)
+                const avgB = Math.round(b / count)
+                primaryColor = [avgR, avgG, avgB]
+                accentColor = [Math.min(255, avgR + 40), Math.min(255, avgG + 40), Math.min(255, avgB + 40)]
+                colorsResolved = true
+              }
+            } catch (err) {
+              console.warn('Extraction couleur automatique impossible pour', logoPath, err)
+            }
+          }
+
+          if (!colorsResolved) {
+            const companyColors: { [key: string]: { primary: number[], accent: number[] } } = {
+              'GREEN': { primary: [27, 94, 32], accent: [76, 175, 80] },
+              'TRANS': { primary: [13, 71, 161], accent: [33, 150, 243] },
+            }
+
+            if (company.code && companyColors[company.code]) {
+              primaryColor = companyColors[company.code].primary
+              accentColor = companyColors[company.code].accent
+            }
+            // Explicit override for Transglory: ensure black primary + red accent
+            if (company.code) {
+              const code = company.code.toUpperCase();
+              if (code === 'TRANS') {
+                primaryColor = [0, 0, 0];
+                accentColor = [220, 18, 18];
+                colorsResolved = true;
+              }
+            }
+              // FINAL ENFORCEMENT: For TRTU, force all colors to solid Transglory blue after all color logic
+              if (company.code && company.code.toUpperCase() === 'TRTU') {
+                primaryColor = [26, 35, 126];
+                accentColor = [26, 35, 126];
+              }
           }
         }
       } catch (error) {
@@ -257,7 +423,23 @@ export async function POST(req: Request) {
 
     doc.setFont("helvetica", "bold")
     doc.setFontSize(20)
-    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
+    // Force header text color for all companies (no mixing)
+    if (company.code) {
+      const code = company.code.toUpperCase();
+      // Add more company codes/colors here as needed
+      const companyColors: Record<string, [number, number, number]> = {
+        'TRTU': [26, 35, 126], // Transglory blue
+        'GRTU': [27, 94, 32],  // Green Tunisie
+        // Add more: 'CODE': [R, G, B]
+      };
+      if (Object.prototype.hasOwnProperty.call(companyColors, code)) {
+        doc.setTextColor(...companyColors[code as keyof typeof companyColors]);
+      } else {
+        doc.setTextColor(33, 150, 243); // Default blue
+      }
+    } else {
+      doc.setTextColor(33, 150, 243); // Default blue
+    }
     doc.text("BON DE RETOUR", pageWidth - margin, margin + 8, { align: "right" })
 
     doc.setFont("helvetica", "normal")
@@ -269,8 +451,22 @@ export async function POST(req: Request) {
     const currentTime = new Date(returnNote.returnDate).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
     doc.text(`${currentDate} - ${currentTime}`, pageWidth - margin, margin + 21, { align: "right" })
 
-    // Ligne de séparation colorée
-    doc.setDrawColor(accentColor[0], accentColor[1], accentColor[2])
+    // Ligne de séparation colorée (no mixing)
+    if (company.code) {
+      const code = company.code.toUpperCase();
+      const companyColors = {
+        'TRTU': [26, 35, 126],
+        'GRTU': [27, 94, 32],
+        // Add more: 'CODE': [R, G, B]
+      };
+      if (Object.prototype.hasOwnProperty.call(companyColors, code)) {
+        doc.setDrawColor(...companyColors[code as keyof typeof companyColors]);
+      } else {
+        doc.setDrawColor(33, 150, 243); // Default blue
+      }
+    } else {
+      doc.setDrawColor(33, 150, 243); // Default blue
+    }
     doc.setLineWidth(2)
     doc.line(margin, 48, pageWidth - margin, 48)
 
@@ -325,8 +521,22 @@ export async function POST(req: Request) {
     yPos += 40
 
     // === TABLEAU DES ÉQUIPEMENTS ===
-    // En-tête du tableau
-    doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
+    // En-tête du tableau (no mixing)
+    if (company.code) {
+      const code = company.code.toUpperCase();
+      const companyColors = {
+        'TRTU': [26, 35, 126],
+        'GRTU': [27, 94, 32],
+        // Add more: 'CODE': [R, G, B]
+      };
+      if (Object.prototype.hasOwnProperty.call(companyColors, code)) {
+        doc.setFillColor(...companyColors[code as keyof typeof companyColors]);
+      } else {
+        doc.setFillColor(33, 150, 243); // Default blue
+      }
+    } else {
+      doc.setFillColor(33, 150, 243); // Default blue
+    }
     doc.rect(margin, yPos, pageWidth - 2 * margin, 10, "F")
 
     doc.setFont("helvetica", "bold")
