@@ -15,6 +15,7 @@ const DEFAULT_SUBSCRIPTIONS = ["Microsoft 365 Business Basic", "Microsoft 365 Bu
 const DEFAULT_DEPARTMENTS = ["Documentation", "IT", "Operations", "Sales", "Brokerage", "Finance"]
 const DEFAULT_GLOBAL_EMAILS = ["support@greentunisie.com", "sales@greentunisie.com", "accounting@greentunisie.com", "operations@greentunisie.com", "it@greentunisie.com"]
 const DEFAULT_MACHINE_TYPES = ["Laptop", "Desktop", "Server", "Tablet"]
+const DEFAULT_OS = ["Windows 11 Pro", "Windows 10 Pro", "Windows 11 Home", "Ubuntu 22.04", "Ubuntu 20.04", "macOS Ventura"]
 
 interface CompanyWithLogo {
   id: string
@@ -30,6 +31,8 @@ export function SettingsForm() {
   const [departments, setDepartments] = useState<string[]>([])
   const [globalEmails, setGlobalEmails] = useState<string[]>([])
   const [machineTypes, setMachineTypes] = useState<string[]>([])
+  const [operatingSystems, setOperatingSystems] = useState<string[]>([])
+  const [newOs, setNewOs] = useState("")
   const [newCompany, setNewCompany] = useState("")
   const [newCompanyCode, setNewCompanyCode] = useState("")
   const [newOffice, setNewOffice] = useState("")
@@ -55,7 +58,21 @@ export function SettingsForm() {
     setSubscriptions(savedSubscriptions ? JSON.parse(savedSubscriptions) : DEFAULT_SUBSCRIPTIONS)
     setDepartments(savedDepartments ? JSON.parse(savedDepartments) : DEFAULT_DEPARTMENTS)
     setGlobalEmails(savedGlobalEmails ? JSON.parse(savedGlobalEmails) : DEFAULT_GLOBAL_EMAILS)
-    setMachineTypes(savedMachineTypes ? JSON.parse(savedMachineTypes) : DEFAULT_MACHINE_TYPES)
+    setMachineTypes(savedMachineTypes ? JSON.parse(savedMachineTypes) : DEFAULT_MACHINE_TYPES);
+    // Load OS from API or defaults
+    (async () => {
+      try {
+        const res = await fetch('/api/os')
+        if (res.ok) {
+          const data = await res.json()
+          setOperatingSystems(data.map((o: any) => o.name))
+        } else {
+          setOperatingSystems(DEFAULT_OS)
+        }
+      } catch (err) {
+        setOperatingSystems(DEFAULT_OS)
+      }
+    })()
   }, [])
 
   const loadCompanies = async () => {
@@ -332,6 +349,64 @@ export function SettingsForm() {
     saveToStorage('machineTypes', updated)
     setNewMachineType("")
     toast.success("Type de machine ajouté")
+  }
+
+  const addOs = async () => {
+    if (!newOs.trim()) {
+      toast.error("Veuillez entrer un nom d'OS")
+      return
+    }
+
+    try {
+      const res = await fetch('/api/os', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newOs.trim() })
+      })
+
+      if (res.ok) {
+        const created = await res.json()
+        setOperatingSystems((prev) => [...prev, created.name])
+        setNewOs("")
+        toast.success('OS ajouté')
+      } else {
+        const data = await res.json()
+        toast.error(data.error || 'Erreur ajout OS')
+      }
+    } catch (error) {
+      console.error('Erreur ajout OS:', error)
+      toast.error('Erreur ajout OS')
+    }
+  }
+
+  const removeOs = async (name: string) => {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer ${name} ?`)) return
+    try {
+      // Find OS id by name
+      const res = await fetch('/api/os')
+      if (!res.ok) {
+        toast.error('Erreur suppression OS')
+        return
+      }
+      const list = await res.json()
+      const os = list.find((o: any) => o.name === name)
+      if (!os) {
+        toast.error('OS introuvable')
+        return
+      }
+
+      const del = await fetch(`/api/os/${os.id}`, { method: 'DELETE' })
+      if (del.ok) {
+        setOperatingSystems((prev) => prev.filter(o => o !== name))
+        toast.success('OS supprimé')
+      } else {
+        const data = await del.json()
+        toast.error(data.error || 'Erreur suppression OS')
+      }
+    } catch (error) {
+      console.error('Erreur suppression OS:', error)
+      toast.error('Erreur suppression OS')
+    }
   }
 
   const removeMachineType = (machineType: string) => {
@@ -658,6 +733,40 @@ export function SettingsForm() {
           ))}
         </div>
       </div>
+
+        {/* Systèmes d'exploitation (OS) */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Label className="text-lg font-semibold">Systèmes d'exploitation</Label>
+            <Badge variant="secondary">{operatingSystems.length} OS</Badge>
+          </div>
+
+          <div className="flex gap-2">
+            <Input
+              value={newOs}
+              onChange={(e) => setNewOs(e.target.value)}
+              placeholder="Nouveau OS..."
+              onKeyPress={(e) => e.key === 'Enter' && addOs()}
+            />
+            <Button onClick={addOs} size="icon">
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {operatingSystems.map((os) => (
+              <Badge key={os} variant="outline" className="px-3 py-1.5 text-sm">
+                {os}
+                <button
+                  onClick={() => removeOs(os)}
+                  className="ml-2 hover:text-destructive"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        </div>
 
       {/* Reset Button */}
       <div className="flex justify-end pt-4 border-t">

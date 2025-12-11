@@ -154,6 +154,7 @@ export function MachineEditForm({ machine }: MachineEditFormProps) {
   const [machineTypes, setMachineTypes] = useState<string[]>(defaultTypes);
   const [selectedType, setSelectedType] = useState<string>(machine.type)
   const [technicalSpecs, setTechnicalSpecs] = useState<Record<string, string>>({})
+  const [osOptions, setOsOptions] = useState<string[]>([])
 
   useEffect(() => {
     const savedMachineTypes = localStorage.getItem("custom_machine_types")
@@ -205,6 +206,13 @@ export function MachineEditForm({ machine }: MachineEditFormProps) {
     }
 
     fetchData()
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/os')
+      .then(res => res.json())
+      .then(data => setOsOptions((data || []).map((o: any) => o.name)))
+      .catch(err => console.error('Erreur chargement OS:', err))
   }, [])
 
   const {
@@ -461,7 +469,7 @@ export function MachineEditForm({ machine }: MachineEditFormProps) {
                         <SelectValue placeholder={`Sélectionner ${field.label.toLowerCase()}`} />
                       </SelectTrigger>
                       <SelectContent>
-                        {field.options.map((option: string) => (
+                        {(field.name === 'windowsVersion' ? (osOptions.length ? osOptions : field.options) : field.options).map((option: string) => (
                           <SelectItem key={option} value={option}>
                             {option}
                           </SelectItem>
@@ -521,12 +529,16 @@ export function MachineEditForm({ machine }: MachineEditFormProps) {
                     <SelectValue placeholder="Sélectionner une version" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Windows 11 Pro">Windows 11 Pro</SelectItem>
-                    <SelectItem value="Windows 10 Pro">Windows 10 Pro</SelectItem>
-                    <SelectItem value="Windows 11 Home">Windows 11 Home</SelectItem>
-                    <SelectItem value="Ubuntu 22.04">Ubuntu 22.04</SelectItem>
-                    <SelectItem value="macOS Ventura">macOS Ventura</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
+                    {(osOptions.length ? osOptions : [
+                      'Windows 11 Pro',
+                      'Windows 10 Pro',
+                      'Windows 11 Home',
+                      'Ubuntu 22.04',
+                      'macOS Ventura',
+                      'Other'
+                    ]).map((opt) => (
+                      <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

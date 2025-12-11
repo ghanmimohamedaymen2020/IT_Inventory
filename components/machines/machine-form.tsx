@@ -105,6 +105,7 @@ export function MachineForm() {
   const [technicalSpecs, setTechnicalSpecs] = useState<Record<string, string>>({})
   const defaultTypes = ["Laptop", "Desktop", "Server", "Tablet"]
   const [machineTypes, setMachineTypes] = useState<string[]>(defaultTypes)
+  const [osOptions, setOsOptions] = useState<string[]>([])
 
   useEffect(() => {
     const savedMachineTypes = localStorage.getItem("custom_machine_types")
@@ -128,6 +129,12 @@ export function MachineForm() {
       .then(res => res.json())
       .then(data => setCompanies(data || []))
       .catch(err => console.error('Erreur chargement sociétés:', err))
+
+    // Charger OS dynamiquement
+    fetch('/api/os')
+      .then(res => res.json())
+      .then(data => setOsOptions((data || []).map((o: any) => o.name)))
+      .catch(err => console.error('Erreur chargement OS:', err))
   }, [])
 
   const {
@@ -308,11 +315,11 @@ export function MachineForm() {
                       <SelectValue placeholder={`Sélectionner ${field.label.toLowerCase()}`} />
                     </SelectTrigger>
                     <SelectContent>
-                      {field.options.map((option: string) => (
-                        <SelectItem key={option} value={option}>
-                          {option}
-                        </SelectItem>
-                      ))}
+                        {(field.name === 'os' ? (osOptions.length ? osOptions : field.options) : field.options).map((option: string) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 ) : (
