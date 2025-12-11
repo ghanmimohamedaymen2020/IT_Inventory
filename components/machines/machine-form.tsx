@@ -26,7 +26,7 @@ const MACHINE_SPECS = {
       { name: 'disk', label: 'Stockage', placeholder: '256GB SSD' },
       { name: 'screenSize', label: 'Taille écran', placeholder: '14 pouces' },
       { name: 'battery', label: 'Batterie', placeholder: '45Wh' },
-      { name: 'os', label: 'OS', placeholder: 'Windows 11 Pro' },
+      { name: 'os', label: 'OS', type: 'select', options: ['Windows 11 Pro', 'Windows 10 Pro', 'Windows 11 Home', 'Ubuntu 22.04', 'Ubuntu 20.04', 'macOS Ventura', 'Other'] },
       { name: 'productKey', label: 'Activation key (Windows)', placeholder: 'XXXXX-XXXXX-XXXXX-XXXXX' },
     ]
   },
@@ -37,7 +37,7 @@ const MACHINE_SPECS = {
       { name: 'disk', label: 'Stockage', placeholder: '512GB SSD + 1TB HDD' },
       { name: 'gpu', label: 'Carte graphique', placeholder: 'NVIDIA GTX 1650' },
       { name: 'psu', label: 'Alimentation par activation key', placeholder: 'XXXXX-XXXXX-XXXXX-XXXXX' },
-      { name: 'os', label: 'OS', placeholder: 'Windows 11 Pro' },
+      { name: 'os', label: 'OS', type: 'select', options: ['Windows 11 Pro', 'Windows 10 Pro', 'Windows 11 Home', 'Ubuntu 22.04', 'Ubuntu 20.04', 'Other'] },
     ]
   },
   'Server': {
@@ -47,7 +47,7 @@ const MACHINE_SPECS = {
       { name: 'disk', label: 'Stockage', placeholder: '2x 1TB SSD RAID1' },
       { name: 'raidType', label: 'RAID', placeholder: 'RAID 1' },
       { name: 'networkPorts', label: 'Ports réseau', placeholder: '2x 1Gbps' },
-      { name: 'os', label: 'OS', placeholder: 'Windows Server 2022' },
+      { name: 'os', label: 'OS', type: 'select', options: ['Windows Server 2022', 'Windows Server 2019', 'Ubuntu 22.04', 'Other'] },
     ]
   },
   'Tablet': {
@@ -55,7 +55,7 @@ const MACHINE_SPECS = {
       { name: 'screenSize', label: 'Taille écran', placeholder: '10.2 pouces' },
       { name: 'ram', label: 'RAM', placeholder: '4GB' },
       { name: 'disk', label: 'Stockage', placeholder: '64GB' },
-      { name: 'os', label: 'Système', placeholder: 'Android 13' },
+      { name: 'os', label: 'Système', type: 'select', options: ['Android 13', 'Android 12', 'iPadOS 16', 'Other'] },
       { name: 'connectivity', label: 'Connectivité', placeholder: 'WiFi + 4G' },
     ]
   },

@@ -38,7 +38,7 @@ const MACHINE_SPECS = {
       { name: 'disk', label: 'Stockage', type: 'text', placeholder: '256GB SSD' },
       { name: 'screenSize', label: 'Taille écran', type: 'text', placeholder: '14 pouces' },
       { name: 'battery', label: 'Batterie', type: 'text', placeholder: '45Wh' },
-      { name: 'windowsVersion', label: 'OS Windows', type: 'text', placeholder: 'Windows 11 Pro' },
+      { name: 'windowsVersion', label: 'OS Windows', type: 'select', options: ['Windows 11 Pro', 'Windows 10 Pro', 'Windows 11 Home', 'Ubuntu 22.04', 'macOS Ventura', 'Other'] },
       { name: 'productKey', label: 'Activation key (Windows)', type: 'text', placeholder: 'XXXXX-XXXXX-XXXXX-XXXXX' },
     ]
   },
@@ -50,7 +50,7 @@ const MACHINE_SPECS = {
       { name: 'gpu', label: 'Carte graphique', type: 'text', placeholder: 'NVIDIA GTX 1650' },
       { name: 'psu', label: 'Alimentation', type: 'text', placeholder: 'XXXXX-XXXXX-XXXXX-XXXXX' },
       { name: 'psu', label: 'Alimentation par activation key', type: 'text', placeholder: 'XXXXX-XXXXX-XXXXX-XXXXX' },
-      { name: 'windowsVersion', label: 'OS Windows', type: 'text', placeholder: 'Windows 11 Pro' },
+      { name: 'windowsVersion', label: 'OS Windows', type: 'select', options: ['Windows 11 Pro', 'Windows 10 Pro', 'Windows 11 Home', 'Ubuntu 22.04', 'Other'] },
     ]
   },
   'Server': {
@@ -60,7 +60,7 @@ const MACHINE_SPECS = {
       { name: 'disk', label: 'Stockage', type: 'text', placeholder: '2x 1TB SSD RAID1' },
       { name: 'raidType', label: 'RAID', type: 'text', placeholder: 'RAID 1' },
       { name: 'networkPorts', label: 'Ports réseau', type: 'text', placeholder: '2x 1Gbps' },
-      { name: 'windowsVersion', label: 'OS', type: 'text', placeholder: 'Windows Server 2022' },
+      { name: 'windowsVersion', label: 'OS', type: 'select', options: ['Windows Server 2022', 'Windows Server 2019', 'Ubuntu 22.04', 'Other'] },
     ]
   },
   'Tablet': {
@@ -513,11 +513,22 @@ export function MachineEditForm({ machine }: MachineEditFormProps) {
 
               <div className="space-y-2">
                 <Label htmlFor="windowsVersion">Version Windows</Label>
-                <Input
-                  id="windowsVersion"
-                  {...register("windowsVersion")}
-                  placeholder="Windows 11 Pro"
-                />
+                <Select
+                  onValueChange={(value) => setValue("windowsVersion", value)}
+                  defaultValue={watch("windowsVersion") || ''}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner une version" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Windows 11 Pro">Windows 11 Pro</SelectItem>
+                    <SelectItem value="Windows 10 Pro">Windows 10 Pro</SelectItem>
+                    <SelectItem value="Windows 11 Home">Windows 11 Home</SelectItem>
+                    <SelectItem value="Ubuntu 22.04">Ubuntu 22.04</SelectItem>
+                    <SelectItem value="macOS Ventura">macOS Ventura</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           )}
