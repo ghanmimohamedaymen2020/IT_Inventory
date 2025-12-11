@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { SettingsForm } from "@/components/admin/settings-form"
+import AuthorizedEmailsClient from '@/components/admin/authorized-emails-client'
 import { cookies } from "next/headers"
 import { jwtVerify } from "jose"
 
@@ -51,6 +52,16 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent>
           <SettingsForm />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Emails autorisés</CardTitle>
+          <CardDescription>Gérer la liste des emails autorisés (Super Admin uniquement)</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AuthorizedEmailsClient />
         </CardContent>
       </Card>
     </div>
