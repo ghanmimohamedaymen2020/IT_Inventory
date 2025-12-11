@@ -39,6 +39,7 @@ const MACHINE_SPECS = {
       { name: 'screenSize', label: 'Taille écran', type: 'text', placeholder: '14 pouces' },
       { name: 'battery', label: 'Batterie', type: 'text', placeholder: '45Wh' },
       { name: 'windowsVersion', label: 'OS Windows', type: 'text', placeholder: 'Windows 11 Pro' },
+      { name: 'productKey', label: 'Activation key (Windows)', type: 'text', placeholder: 'XXXXX-XXXXX-XXXXX-XXXXX' },
     ]
   },
   'Desktop': {
@@ -47,7 +48,8 @@ const MACHINE_SPECS = {
       { name: 'ram', label: 'RAM', type: 'text', placeholder: '16GB DDR4' },
       { name: 'disk', label: 'Stockage', type: 'text', placeholder: '512GB SSD + 1TB HDD' },
       { name: 'gpu', label: 'Carte graphique', type: 'text', placeholder: 'NVIDIA GTX 1650' },
-      { name: 'psu', label: 'Alimentation', type: 'text', placeholder: '500W' },
+      { name: 'psu', label: 'Alimentation', type: 'text', placeholder: 'XXXXX-XXXXX-XXXXX-XXXXX' },
+      { name: 'psu', label: 'Alimentation par activation key', type: 'text', placeholder: 'XXXXX-XXXXX-XXXXX-XXXXX' },
       { name: 'windowsVersion', label: 'OS Windows', type: 'text', placeholder: 'Windows 11 Pro' },
     ]
   },

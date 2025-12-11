@@ -27,6 +27,7 @@ const MACHINE_SPECS = {
       { name: 'screenSize', label: 'Taille écran', placeholder: '14 pouces' },
       { name: 'battery', label: 'Batterie', placeholder: '45Wh' },
       { name: 'os', label: 'OS', placeholder: 'Windows 11 Pro' },
+      { name: 'productKey', label: 'Activation key (Windows)', placeholder: 'XXXXX-XXXXX-XXXXX-XXXXX' },
     ]
   },
   'Desktop': {
@@ -35,7 +36,7 @@ const MACHINE_SPECS = {
       { name: 'ram', label: 'RAM', placeholder: '16GB DDR4' },
       { name: 'disk', label: 'Stockage', placeholder: '512GB SSD + 1TB HDD' },
       { name: 'gpu', label: 'Carte graphique', placeholder: 'NVIDIA GTX 1650' },
-      { name: 'psu', label: 'Alimentation', placeholder: '500W' },
+      { name: 'psu', label: 'Alimentation par activation key', placeholder: 'XXXXX-XXXXX-XXXXX-XXXXX' },
       { name: 'os', label: 'OS', placeholder: 'Windows 11 Pro' },
     ]
   },
@@ -75,6 +76,7 @@ const machineSchema = z.object({
   ram: z.string().optional(),
   storage: z.string().optional(),
   os: z.string().optional(),
+  productKey: z.string().optional(),
   purchaseDate: z.string().optional(),
   warrantyEndDate: z.string().optional(),
   assignedTo: z.string().optional(),
