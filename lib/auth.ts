@@ -1,7 +1,6 @@
 import NextAuth from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
 import CredentialsProvider from "next-auth/providers/credentials"
-import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/db"
 
 const providers: any[] = []
@@ -90,7 +89,6 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(prisma) as any,
   providers,
   callbacks: {
     async session({ session, token }) {
