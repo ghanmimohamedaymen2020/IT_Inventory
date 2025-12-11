@@ -147,8 +147,36 @@ export async function POST(req: NextRequest) {
     // Tableau des équipements
     for (let index = 0; index < equipments.length; index++) {
       const equipment: any = equipments[index]
+
+      // Préparer le texte de la colonne DÉTAILS (droite) et calculer sa hauteur
+      const parts: string[] = []
+      if (equipment.brand) parts.push(equipment.brand)
+      if (equipment.model) parts.push(equipment.model)
+      if (equipment.inventoryCode) parts.push(`#${equipment.inventoryCode}`)
+      let detailsText = parts.join(' • ')
+
+      // Vérifier si retiré
+      try {
+        const existing = await prisma.machine.findUnique({ where: { serialNumber: equipment.serialNumber } })
+        if (existing && existing.assetStatus === 'retiré') {
+          detailsText = detailsText ? `Matériel déjà retiré • ${detailsText}` : 'Matériel déjà retiré'
+        }
+      } catch (err) {
+        // ignore and keep detailsText
+      }
+
+      const detailsX = pageWidth - margin - 75
+      const detailsWidth = 70
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      const detailsLines = detailsText ? doc.splitTextToSize(detailsText, detailsWidth) : []
+      const detailsHeight = detailsLines.length > 0 ? detailsLines.length * 4.5 : 0
+
+      const defaultRowHeight = 30
+      const rowHeight = Math.max(defaultRowHeight, Math.ceil(detailsHeight) + 8)
+
       // Vérifier si on a besoin d'une nouvelle page
-      if (yPos > pageHeight - 80) {
+      if (yPos + rowHeight > pageHeight - 80) {
         doc.addPage()
         yPos = 20
       }
@@ -156,41 +184,39 @@ export async function POST(req: NextRequest) {
       // Fond alterné pour chaque équipement
       if (index % 2 === 0) {
         doc.setFillColor(250, 250, 250)
-        doc.rect(margin, yPos - 5, pageWidth - 2 * margin, 30, 'F')
+        doc.rect(margin, yPos - 5, pageWidth - 2 * margin, rowHeight, 'F')
       }
 
       // Numéro et type
       doc.setFont('helvetica', 'bold')
       doc.text(`${index + 1}. ${equipment.type}`, margin + 5, yPos)
       
-      yPos += 6
+      const textY = yPos + 6
       doc.setFont('helvetica', 'normal')
 
-      // Description
+      // Description / Série sur la même zone de gauche
+      let localY = textY
       if (equipment.brand) {
-        doc.text(`   Marque: ${equipment.brand}`, margin + 5, yPos)
-        yPos += 5
+        doc.text(`Marque: ${equipment.brand}`, margin + 5, localY)
+        localY += 5
       }
 
-      doc.text(`   Description: ${equipment.description}`, margin + 5, yPos)
-      yPos += 5
-
-      doc.text(`   N° Série: ${equipment.serialNumber}`, margin + 5, yPos)
-      yPos += 4
-
-      // Ajout du statut si l'équipement correspond à une machine retirée
-      try {
-        const existing = await prisma.machine.findUnique({ where: { serialNumber: equipment.serialNumber } })
-        if (existing && existing.assetStatus === 'retiré') {
-          doc.text(`   Statut: Matériel déjà retiré`, margin + 5, yPos)
-          yPos += 8
-        } else {
-          yPos += 6
-        }
-      } catch (err) {
-        console.warn('generate-v2: impossible de vérifier le statut de la machine', equipment.serialNumber, err)
-        yPos += 6
+      if (equipment.description) {
+        doc.text(`Description: ${equipment.description}`, margin + 5, localY)
+        localY += 5
       }
+
+      doc.text(`N° Série: ${equipment.serialNumber}`, margin + 5, localY)
+
+      // Détails (colonne droite, même ligne)
+      if (detailsLines.length > 0) {
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(8)
+        doc.setTextColor(100, 100, 100)
+        doc.text(detailsLines, detailsX, textY)
+      }
+
+      yPos += rowHeight
     }
 
     // Section Signatures

@@ -366,92 +366,110 @@ export async function POST(request: NextRequest) {
     // Pour chaque équipement (lignes du tableau)
     for (let index = 0; index < equipments.length; index++) {
       const equipment: any = equipments[index]
+
+      // Préparer le texte de la colonne DÉTAILS (droite) et calculer sa hauteur
+      let detailsText = ""
+      let specsText = ""
+      if (equipment.serialNumberStatus === 'found') {
+        try {
+          const existing = await prisma.machine.findUnique({ where: { serialNumber: equipment.serialNumber } })
+          if (existing && existing.assetStatus === 'retiré') {
+            detailsText = 'Matériel déjà retiré'
+          } else {
+            const parts: string[] = []
+            if (equipment.brand) parts.push(equipment.brand)
+            if (equipment.model) parts.push(equipment.model)
+            if (equipment.inventoryCode) parts.push(`#${equipment.inventoryCode}`)
+            detailsText = parts.join(' • ')
+          }
+        } catch (err) {
+          console.warn('generate-v3: impossible de vérifier le statut de la machine', equipment.serialNumber, err)
+          const parts: string[] = []
+          if (equipment.brand) parts.push(equipment.brand)
+          if (equipment.model) parts.push(equipment.model)
+          if (equipment.inventoryCode) parts.push(`#${equipment.inventoryCode}`)
+          detailsText = parts.join(' • ')
+        }
+
+        if (equipment.foundData && 'machineName' in equipment.foundData) {
+          const machine = equipment.foundData
+          const specs: string[] = []
+          if (machine.cpu) specs.push(machine.cpu)
+          if (machine.ram) specs.push(machine.ram)
+          if (machine.disk) specs.push(machine.disk)
+          if (specs.length > 0) specsText = specs.join(' | ')
+        }
+      }
+
+      // Définir la zone DÉTAILS - alignée à droite
+      const detailsX = pageWidth - margin - 75
+      const detailsWidth = 70
+
+      // Ajuster la police temporairement pour mesurer le texte
+      doc.setFont("helvetica", "normal")
+      doc.setFontSize(8)
+      const mergedDetails = specsText ? (detailsText ? `${detailsText}\n${specsText}` : specsText) : detailsText
+      const detailsLines: string[] = mergedDetails ? doc.splitTextToSize(mergedDetails, detailsWidth) : []
+      const detailsHeight = detailsLines.length > 0 ? detailsLines.length * 4.5 : 0
+
       // Vérifier si on a assez d'espace, sinon nouvelle page
+      const defaultLineHeight = equipment.serialNumberStatus === 'found' && equipment.foundData ? 18 : 12
+      const rowHeight = Math.max(defaultLineHeight, Math.ceil(detailsHeight) + 8)
       if (yPos > pageHeight - 80) {
         doc.addPage()
         yPos = margin + 10
       }
 
-      const lineHeight = equipment.serialNumberStatus === 'found' && equipment.foundData ? 18 : 12
-
       // Fond alterné pour les lignes
       if (index % 2 === 0) {
         doc.setFillColor(250, 250, 250)
-        doc.rect(margin, yPos, pageWidth - 2 * margin, lineHeight, "F")
+        doc.rect(margin, yPos, pageWidth - 2 * margin, rowHeight, "F")
       }
 
       // Bordures des cellules
       doc.setDrawColor(220, 220, 220)
       doc.setLineWidth(0.1)
-      doc.line(margin, yPos + lineHeight, pageWidth - margin, yPos + lineHeight)
+      doc.line(margin, yPos + rowHeight, pageWidth - margin, yPos + rowHeight)
 
-      yPos += 4
+      // Position du texte à l'intérieur de la ligne
+      const textY = yPos + 6
 
       // Numéro
       doc.setFont("helvetica", "bold")
       doc.setFontSize(10)
       doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
-      doc.text(`${index + 1}`, margin + 5, yPos)
+      doc.text(`${index + 1}`, margin + 5, textY)
 
       // Type
       doc.setFont("helvetica", "bold")
       doc.setFontSize(10)
       doc.setTextColor(0, 0, 0)
-      doc.text(equipment.type, margin + 12, yPos)
+      doc.text(equipment.type, margin + 12, textY)
 
       // Numéro de série
       doc.setFont("helvetica", "normal")
       doc.setFontSize(9)
       doc.setTextColor(60, 60, 60)
-      doc.text(equipment.serialNumber, margin + 45, yPos)
+      doc.text(equipment.serialNumber, margin + 45, textY)
 
-      // Détails si trouvé
-      if (equipment.serialNumberStatus === 'found') {
-        yPos += 5
+      // Détails (colonne de droite, même ligne)
+      if (detailsLines.length > 0) {
         doc.setFont("helvetica", "normal")
         doc.setFontSize(8)
         doc.setTextColor(100, 100, 100)
-
-        // Vérifier l'état réel en base pour afficher un message clair si retiré
-        let details: string[] = []
-        try {
-          const existing = await prisma.machine.findUnique({ where: { serialNumber: equipment.serialNumber } })
-          if (existing && existing.assetStatus === 'retiré') {
-            details = ['Matériel déjà retiré']
-          } else {
-            if (equipment.brand) details.push(equipment.brand)
-            if (equipment.model) details.push(equipment.model)
-            if (equipment.inventoryCode) details.push(`#${equipment.inventoryCode}`)
-          }
-        } catch (err) {
-          console.warn('generate-v3: impossible de vérifier le statut de la machine', equipment.serialNumber, err)
-          if (equipment.brand) details.push(equipment.brand)
-          if (equipment.model) details.push(equipment.model)
-          if (equipment.inventoryCode) details.push(`#${equipment.inventoryCode}`)
-        }
-
-        if (details.length > 0) {
-          doc.text(details.join(' • '), margin + 12, yPos)
-        }
-
-        // Spécifications techniques (CPU/RAM/Disque)
-        if (equipment.foundData && 'machineName' in equipment.foundData) {
-          const machine = equipment.foundData
-          const specs = []
-          if (machine.cpu) specs.push(machine.cpu)
-          if (machine.ram) specs.push(machine.ram)
-          if (machine.disk) specs.push(machine.disk)
-
-          if (specs.length > 0) {
-            yPos += 4
-            doc.setFontSize(7)
-            doc.setTextColor(120, 120, 120)
-            doc.text(specs.join(' | '), margin + 12, yPos)
-          }
-        }
+        // jsPDF accepts array of lines
+        doc.text(detailsLines, detailsX, textY)
       }
 
-      yPos += lineHeight - 3
+      // Si aucun détail mais on a des spécifications séparées, les dessiner aussi sous détails
+      if (!detailsLines.length && specsText) {
+        doc.setFont("helvetica", "normal")
+        doc.setFontSize(7)
+        doc.setTextColor(120, 120, 120)
+        doc.text(specsText, detailsX, textY + 6)
+      }
+
+      yPos += rowHeight
     }
 
     yPos += 15
