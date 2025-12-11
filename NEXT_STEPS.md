@@ -381,6 +381,21 @@ python scripts/utils.py qr "IT-ASSET-ABC-001" "output.png"
 
 ---
 
+## ⚠️ Après modification du schéma Prisma
+
+Si vous modifiez `prisma/schema.prisma` (par ex. ajout du modèle `AuthorizedEmail`), exécutez en local :
+
+```powershell
+# Générer et appliquer une migration
+npx prisma migrate dev --name add-authorized-email
+
+# Régénérer le client Prisma
+npx prisma generate
+```
+
+Cette étape est nécessaire pour que l'API et le tableau de bord puissent persister la liste des emails autorisés.
+
+
 **🎯 Objectif :** Application complète et fonctionnelle en 2-3 semaines  
 **📅 Prochaine étape :** Implémenter le module Machines  
 **💡 Conseil :** Commencer par le formulaire machine simple, puis ajouter les fonctionnalités avancées
