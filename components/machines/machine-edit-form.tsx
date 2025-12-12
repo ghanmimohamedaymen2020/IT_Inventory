@@ -211,7 +211,20 @@ export function MachineEditForm({ machine }: MachineEditFormProps) {
   useEffect(() => {
     fetch('/api/os')
       .then(res => res.json())
-      .then(data => setOsOptions((data || []).map((o: any) => o.name)))
+      .then(data => {
+        const names = (data || []).map((o: any) => String(o.name).trim())
+        // Ensure the machine's current OS (if any) is present in the options so the select can display it
+        if (machine.windowsVersion) {
+          const current = String(machine.windowsVersion).trim()
+          if (current && !names.includes(current)) {
+            names.unshift(current)
+          }
+          // Make sure form state and local technical specs reflect the machine's current OS
+          setTechnicalSpecs((prev) => ({ ...prev, windowsVersion: current }))
+          setValue("windowsVersion", current)
+        }
+        setOsOptions(names)
+      })
       .catch(err => console.error('Erreur chargement OS:', err))
   }, [])
 
