@@ -13,6 +13,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import ColumnSelector from "@/components/ui/column-selector"
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import { useMemo } from "react"
 import { Edit } from "lucide-react"
 
 type User = {
@@ -74,11 +76,60 @@ export default function UsersList({ users, initialColumns }: UsersListProps) {
       default: return <Badge variant="outline">{role}</Badge>
     }
   }
+  // derive companies and roles for filters
+  const companies = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; code: string }>()
+    users.forEach(u => {
+      if (u.company && !map.has(u.company.id)) map.set(u.company.id, u.company)
+    })
+    return Array.from(map.values())
+  }, [users])
+
+  const roles = useMemo(() => {
+    const s = new Set<string>()
+    users.forEach(u => s.add(u.role))
+    return Array.from(s)
+  }, [users])
+
+  const [selectedCompany, setSelectedCompany] = useState<string | null>("all")
+  const [selectedRole, setSelectedRole] = useState<string | null>("all")
+
+  const filteredUsers = useMemo(() => {
+    return users.filter(u => {
+      const companyMatch = selectedCompany === "all" || !selectedCompany || u.company?.id === selectedCompany
+      const roleMatch = selectedRole === "all" || !selectedRole || u.role === selectedRole
+      return companyMatch && roleMatch
+    })
+  }, [users, selectedCompany, selectedRole])
 
   return (
     <div className="border rounded-lg bg-white shadow-sm">
-      <div className="flex justify-between items-center p-3">
-        <div />
+      <div className="flex items-center justify-between p-3 gap-4">
+        <div className="flex items-center gap-3">
+          <Select value={selectedCompany ?? "all"} onValueChange={(v) => setSelectedCompany(v)}>
+            <SelectTrigger className="w-[220px]">
+              <SelectValue placeholder="Toutes les sociétés" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes les sociétés</SelectItem>
+              {companies.map(c => (
+                <SelectItem key={c.id} value={c.id}>{c.name} ({c.code})</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={selectedRole ?? "all"} onValueChange={(v) => setSelectedRole(v)}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Tous les rôles" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les rôles</SelectItem>
+              {roles.map(r => (<SelectItem key={r} value={r}>{r}</SelectItem>))}
+            </SelectContent>
+          </Select>
+          <div className="text-sm text-muted-foreground">{filteredUsers.length} résultat{filteredUsers.length > 1 ? 's' : ''}</div>
+        </div>
+
         <div>
           <ColumnSelector allColumns={allColumns} columnLabels={columnLabels} selectedColumns={selectedColumns} onChange={setSelectedColumns} />
         </div>
@@ -97,7 +148,7 @@ export default function UsersList({ users, initialColumns }: UsersListProps) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {users.map(user => (
+          {filteredUsers.map(user => (
             <TableRow key={user.id} className="hover:bg-gray-50 transition">
               {selectedColumns.includes('name') && <TableCell className="text-gray-900 py-3">{user.firstName} {user.lastName}</TableCell>}
               {selectedColumns.includes('email') && <TableCell className="text-base text-gray-600 py-3">{user.email}</TableCell>}

@@ -58,6 +58,13 @@ export async function GET() {
                 email: true,
               },
             },
+            company: {
+              select: {
+                id: true,
+                name: true,
+                code: true,
+              }
+            },
           },
         },
         user: {

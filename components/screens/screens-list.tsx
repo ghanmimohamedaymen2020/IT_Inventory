@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import ColumnSelector from "@/components/ui/column-selector"
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import { useMemo } from "react"
 
 interface Screen {
   id: string
@@ -125,21 +127,78 @@ export function ScreensList({ initialColumns }: ScreensListProps) {
     }
   }
 
+
+  // derive filter lists
+  const companies = useMemo(() => {
+    const map = new Map<string, { id: string; name?: string; code?: string }>()
+    screens.forEach(s => {
+      const c = (s.machine as any)?.company as any
+      if (c && c.id && !map.has(c.id)) map.set(c.id, c)
+    })
+    return Array.from(map.values())
+  }, [screens])
+
+  const usersList = useMemo(() => {
+    const map = new Map<string, { id: string; firstName: string; lastName: string; email: string }>()
+    screens.forEach(s => {
+      const u = s.user || s.machine?.user
+      if (u && u.id && !map.has(u.id)) map.set(u.id, u)
+    })
+    return Array.from(map.values())
+  }, [screens])
+
+  const [selectedCompany, setSelectedCompany] = useState<string | null>("all")
+  const [selectedUser, setSelectedUser] = useState<string | null>("all")
+
+  const filteredScreens = useMemo(() => {
+    return screens.filter(s => {
+      const companyId = (s.machine as any)?.company?.id
+      const userId = s.user?.id || (s.machine as any)?.user?.id
+      const companyMatch = selectedCompany === 'all' || !selectedCompany || companyId === selectedCompany
+      const userMatch = selectedUser === 'all' || !selectedUser || userId === selectedUser
+      return companyMatch && userMatch
+    })
+  }, [screens, selectedCompany, selectedUser])
+
   if (isLoading) {
     return <div className="text-center py-8">Chargement...</div>
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end items-center gap-4">
-        <div>
+      <div className="flex justify-between items-center gap-4">
+        <div className="flex items-center gap-3">
+            <Select value={selectedCompany ?? "all"} onValueChange={(v) => setSelectedCompany(v)}>
+            <SelectTrigger className="w-[220px]">
+              <SelectValue placeholder="Toutes les sociétés" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes les sociétés</SelectItem>
+              {companies.map((c: any) => (
+                <SelectItem key={c.id} value={c.id}>{c.name ?? c.code ?? c.id}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={selectedUser ?? "all"} onValueChange={(v) => setSelectedUser(v)}>
+            <SelectTrigger className="w-[220px]">
+              <SelectValue placeholder="Tous les utilisateurs" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les utilisateurs</SelectItem>
+              {usersList.map(u => (
+                <SelectItem key={u.id} value={u.id}>{u.firstName} {u.lastName}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-center gap-3">
           <Button onClick={() => router.push("/dashboard/screens/create") }>
             <Plus className="h-4 w-4 mr-2" />
             Ajouter un écran
           </Button>
-        </div>
 
-        <div>
           <ColumnSelector allColumns={allColumns} columnLabels={columnLabels} selectedColumns={selectedColumns} onChange={setSelectedColumns} />
         </div>
       </div>

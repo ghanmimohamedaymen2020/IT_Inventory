@@ -90,16 +90,6 @@ export default async function UsersPage() {
       </div>
 
       <div className="flex items-center gap-4 mb-2">
-        {/* Filtres à ajouter here if needed */}
-        <select className="border rounded-md px-3 py-2 text-sm text-gray-700 bg-white">
-          <option value="">Toutes les sociétés</option>
-        </select>
-        <select className="border rounded-md px-3 py-2 text-sm text-gray-700 bg-white">
-          <option value="">Tous les rôles</option>
-          <option value="super_admin">Super Admin</option>
-          <option value="company_admin">Admin</option>
-          <option value="viewer">Viewer</option>
-        </select>
         <span className="ml-auto text-sm text-muted-foreground">{users.length} résultat{users.length > 1 ? 's' : ''}</span>
       </div>
 
