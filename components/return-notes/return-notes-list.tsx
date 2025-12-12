@@ -13,14 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuCheckboxItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu"
+import ColumnSelector from "@/components/ui/column-selector"
 import { FileText, User, Package } from "lucide-react"
 
 type ReturnNote = {
@@ -86,23 +79,7 @@ export default function ReturnNotesList({ returnNotes, initialColumns }: ReturnN
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">Colonnes</Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent sideOffset={6}>
-            <DropdownMenuLabel>Afficher les colonnes</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {allColumns.map(col => (
-              <DropdownMenuCheckboxItem key={col} checked={selectedColumns.includes(col)} onCheckedChange={(checked) => {
-                if (checked) setSelectedColumns(prev => Array.from(new Set([...prev, col])))
-                else setSelectedColumns(prev => prev.filter(c => c !== col))
-              }}>
-                {columnLabels[col] ?? col}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <ColumnSelector allColumns={allColumns} columnLabels={columnLabels} selectedColumns={selectedColumns} onChange={setSelectedColumns} />
       </div>
 
       <Card>

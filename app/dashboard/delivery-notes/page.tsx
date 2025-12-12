@@ -3,8 +3,19 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Package, Plus } from "lucide-react"
 import { DeliveryNotesList } from "@/components/delivery-notes/delivery-notes-list"
+import { cookies } from 'next/headers'
 
 export default function DeliveryNotesPage() {
+  const cookieStore = cookies()
+  const raw = cookieStore.get('delivery_notes_table_columns')
+  let initialColumns: string[] | undefined = undefined
+  if (raw?.value) {
+    try {
+      const parsed = JSON.parse(decodeURIComponent(raw.value))
+      if (Array.isArray(parsed)) initialColumns = parsed
+    } catch (e) {}
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -22,7 +33,7 @@ export default function DeliveryNotesPage() {
         </Link>
       </div>
 
-      <DeliveryNotesList />
+      <DeliveryNotesList initialColumns={initialColumns} />
     </div>
   )
 }

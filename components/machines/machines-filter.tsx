@@ -12,14 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuCheckboxItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu"
+import ColumnSelector from "@/components/ui/column-selector"
 import { MoreHorizontal } from "lucide-react"
 import {
   Select,
@@ -206,29 +199,7 @@ export function MachinesFilter({ machines, initialColumns }: MachinesFilterProps
         </div>
 
         <div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <MoreHorizontal className="mr-2 h-4 w-4" /> Colonnes
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent sideOffset={6}>
-              <DropdownMenuLabel>Afficher les colonnes</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {allColumns.map(col => (
-                <DropdownMenuCheckboxItem
-                  key={col}
-                  checked={selectedColumns.includes(col)}
-                  onCheckedChange={(checked) => {
-                    if (checked) setSelectedColumns(prev => Array.from(new Set([...prev, col])))
-                    else setSelectedColumns(prev => prev.filter(c => c !== col))
-                  }}
-                >
-                  {columnLabels[col] ?? col}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <ColumnSelector allColumns={allColumns} columnLabels={columnLabels} selectedColumns={selectedColumns} onChange={setSelectedColumns} triggerLabel="Colonnes" />
         </div>
       </div>
 
