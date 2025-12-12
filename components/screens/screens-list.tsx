@@ -132,7 +132,7 @@ export function ScreensList({ initialColumns }: ScreensListProps) {
   const companies = useMemo(() => {
     const map = new Map<string, { id: string; name?: string; code?: string }>()
     screens.forEach(s => {
-      const c = (s.machine as any)?.company as any
+      const c = (s as any).company || (s.machine as any)?.company
       if (c && c.id && !map.has(c.id)) map.set(c.id, c)
     })
     return Array.from(map.values())
@@ -152,7 +152,7 @@ export function ScreensList({ initialColumns }: ScreensListProps) {
 
   const filteredScreens = useMemo(() => {
     return screens.filter(s => {
-      const companyId = (s.machine as any)?.company?.id
+      const companyId = (s as any).company?.id || (s.machine as any)?.company?.id
       const userId = s.user?.id || (s.machine as any)?.user?.id
       const companyMatch = selectedCompany === 'all' || !selectedCompany || companyId === selectedCompany
       const userMatch = selectedUser === 'all' || !selectedUser || userId === selectedUser

@@ -46,6 +46,13 @@ export async function GET() {
   try {
     const screens = await prisma.screen.findMany({
       include: {
+        company: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          }
+        },
         machine: {
           select: {
             machineName: true,
