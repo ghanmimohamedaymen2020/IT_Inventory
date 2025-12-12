@@ -19,7 +19,7 @@ export default function RootLayout({
     <html lang="fr" suppressHydrationWarning>
       <body className={inter.className}>
         {children}
-        <Toaster />
+        <Toaster position="top-right" />
       </body>
     </html>
   )

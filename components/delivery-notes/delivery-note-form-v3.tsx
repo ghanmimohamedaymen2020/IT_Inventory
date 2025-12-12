@@ -99,14 +99,14 @@ export function DeliveryNoteFormV3() {
   }, [])
 
   const addEquipment = () => {
-    setEquipments([...equipments, {
+    setEquipments([{
       id: crypto.randomUUID(),
       type: 'Laptop',
       serialNumber: '',
       serialNumberStatus: null,
       alreadyAssigned: false,
       assignedToUser: undefined
-    }])
+    }, ...equipments])
   }
 
   const removeEquipment = (id: string) => {

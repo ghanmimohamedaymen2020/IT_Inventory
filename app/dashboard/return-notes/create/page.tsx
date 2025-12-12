@@ -120,7 +120,7 @@ export default function CreateReturnNotePage() {
             variant: "destructive",
           })
         } else {
-          setEquipments([...equipments, equipment])
+          setEquipments([equipment, ...equipments])
           setSerialNumberSearch("")
           
           toast({
@@ -175,7 +175,7 @@ export default function CreateReturnNotePage() {
             variant: "destructive",
           })
         } else {
-          setEquipments([...equipments, equipment])
+          setEquipments([equipment, ...equipments])
           setSerialNumberSearch("")
           
           toast({
