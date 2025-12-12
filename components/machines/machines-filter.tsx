@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useLayoutEffect } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -77,12 +77,28 @@ export function MachinesFilter({ machines }: MachinesFilterProps) {
     'actions'
   ]
 
+  const columnLabels: Record<string, string> = {
+    inventoryCode: 'Code Inventaire',
+    machineName: 'Nom',
+    type: 'Type',
+    vendor: 'Marque',
+    model: 'Modèle',
+    windowsVersion: 'OS',
+    serialNumber: "N° Série",
+    company: 'Société',
+    acquisitionDate: "Date d'Achat",
+    warrantyDate: 'Garantie',
+    user: "Utilisateur Assigné",
+    assetStatus: 'Statut',
+    actions: 'Actions'
+  }
+
   // Start with server-friendly default; read persisted selection on mount to avoid
   // hydration mismatch between server and client.
   const [selectedColumns, setSelectedColumns] = useState<string[]>(allColumns)
 
-  // Load persisted columns after mount (client-only)
-  useEffect(() => {
+  // Load persisted columns before paint (client-only) to avoid visible reset on reload
+  useLayoutEffect(() => {
     try {
       const raw = localStorage.getItem('machines_table_columns')
       if (raw) {
@@ -196,7 +212,7 @@ export function MachinesFilter({ machines }: MachinesFilterProps) {
                     else setSelectedColumns(prev => prev.filter(c => c !== col))
                   }}
                 >
-                  {col}
+                  {columnLabels[col] ?? col}
                 </DropdownMenuCheckboxItem>
               ))}
             </DropdownMenuContent>
