@@ -168,12 +168,7 @@ export function ScreensList({ initialColumns }: ScreensListProps) {
     <div className="space-y-4">
       <div className="flex justify-between items-center gap-4">
         <div className="flex items-center gap-3">
-          <Button onClick={() => router.push("/dashboard/screens/create") }>
-            <Plus className="h-4 w-4 mr-2" />
-            Ajouter un écran
-          </Button>
-
-          <Select value={selectedCompany ?? "all"} onValueChange={(v) => setSelectedCompany(v)}>
+            <Select value={selectedCompany ?? "all"} onValueChange={(v) => setSelectedCompany(v)}>
             <SelectTrigger className="w-[220px]">
               <SelectValue placeholder="Toutes les sociétés" />
             </SelectTrigger>
@@ -198,7 +193,12 @@ export function ScreensList({ initialColumns }: ScreensListProps) {
           </Select>
         </div>
 
-        <div>
+        <div className="flex items-center gap-3">
+          <Button onClick={() => router.push("/dashboard/screens/create") }>
+            <Plus className="h-4 w-4 mr-2" />
+            Ajouter un écran
+          </Button>
+
           <ColumnSelector allColumns={allColumns} columnLabels={columnLabels} selectedColumns={selectedColumns} onChange={setSelectedColumns} />
         </div>
       </div>
