@@ -196,7 +196,7 @@ export function DeliveryNoteForm() {
       return
     }
 
-    setEquipments([...equipments, foundEquipment])
+    setEquipments([foundEquipment, ...equipments])
     
     // Reset
     setNewSerialNumber('')
