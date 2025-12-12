@@ -26,8 +26,8 @@ const MACHINE_SPECS = {
       { name: 'disk', label: 'Stockage', placeholder: '256GB SSD' },
       { name: 'screenSize', label: 'Taille écran', placeholder: '14 pouces' },
       { name: 'battery', label: 'Batterie', placeholder: '45Wh' },
-      { name: 'os', label: 'OS', type: 'select', options: ['Windows 11 Pro', 'Windows 10 Pro', 'Windows 11 Home', 'Ubuntu 22.04', 'Ubuntu 20.04', 'macOS Ventura', 'Other'] },
-      { name: 'productKey', label: 'Activation key (Windows)', placeholder: 'XXXXX-XXXXX-XXXXX-XXXXX' },
+      { name: 'windowsVersion', label: 'OS', type: 'select', options: ['Windows 11 Pro', 'Windows 10 Pro', 'Windows 11 Home', 'Ubuntu 22.04', 'Ubuntu 20.04', 'Red Hat Enterprise Linux', 'CentOS Stream', 'VMware ESXi', 'Other'] },
+      { name: 'productKey', label: 'Clé d\'activation', placeholder: 'XXXXX-XXXXX-XXXXX-XXXXX' },
     ]
   },
   'Desktop': {
@@ -37,7 +37,7 @@ const MACHINE_SPECS = {
       { name: 'disk', label: 'Stockage', placeholder: '512GB SSD + 1TB HDD' },
       { name: 'gpu', label: 'Carte graphique', placeholder: 'NVIDIA GTX 1650' },
       { name: 'psu', label: 'Alimentation par activation key', placeholder: 'XXXXX-XXXXX-XXXXX-XXXXX' },
-      { name: 'os', label: 'OS', type: 'select', options: ['Windows 11 Pro', 'Windows 10 Pro', 'Windows 11 Home', 'Ubuntu 22.04', 'Ubuntu 20.04', 'Other'] },
+      { name: 'windowsVersion', label: 'OS', type: 'select', options: ['Windows 11 Pro', 'Windows 10 Pro', 'Windows 11 Home', 'Ubuntu 22.04', 'Ubuntu 20.04', 'Red Hat Enterprise Linux', 'CentOS Stream', 'VMware ESXi', 'Other'] },
     ]
   },
   'Server': {
@@ -47,7 +47,7 @@ const MACHINE_SPECS = {
       { name: 'disk', label: 'Stockage', placeholder: '2x 1TB SSD RAID1' },
       { name: 'raidType', label: 'RAID', placeholder: 'RAID 1' },
       { name: 'networkPorts', label: 'Ports réseau', placeholder: '2x 1Gbps' },
-      { name: 'os', label: 'OS', type: 'select', options: ['Windows Server 2022', 'Windows Server 2019', 'Ubuntu 22.04', 'Other'] },
+      { name: 'windowsVersion', label: 'OS', type: 'select', options: ['Windows Server 2022', 'Windows Server 2019', 'Ubuntu 22.04', 'Red Hat Enterprise Linux', 'Other'] },
     ]
   },
   'Tablet': {
@@ -55,7 +55,7 @@ const MACHINE_SPECS = {
       { name: 'screenSize', label: 'Taille écran', placeholder: '10.2 pouces' },
       { name: 'ram', label: 'RAM', placeholder: '4GB' },
       { name: 'disk', label: 'Stockage', placeholder: '64GB' },
-      { name: 'os', label: 'Système', type: 'select', options: ['Android 13', 'Android 12', 'iPadOS 16', 'Other'] },
+      { name: 'windowsVersion', label: 'Système', type: 'select', options: ['Android 13', 'Android 12', 'iPadOS 16', 'Other'] },
       { name: 'connectivity', label: 'Connectivité', placeholder: 'WiFi + 4G' },
     ]
   },
@@ -75,7 +75,7 @@ const machineSchema = z.object({
   processor: z.string().optional(),
   ram: z.string().optional(),
   storage: z.string().optional(),
-  os: z.string().optional(),
+  windowsVersion: z.string().optional(),
   productKey: z.string().optional(),
   purchaseDate: z.string().optional(),
   warrantyEndDate: z.string().optional(),
@@ -315,7 +315,7 @@ export function MachineForm() {
                       <SelectValue placeholder={`Sélectionner ${field.label.toLowerCase()}`} />
                     </SelectTrigger>
                     <SelectContent>
-                        {(field.name === 'os' ? (osOptions.length ? osOptions : field.options) : field.options).map((option: string) => (
+                        {(field.name === 'windowsVersion' ? (osOptions.length ? osOptions : (field as any).options) : (field as any).options).map((option: string) => (
                           <SelectItem key={option} value={option}>
                             {option}
                           </SelectItem>

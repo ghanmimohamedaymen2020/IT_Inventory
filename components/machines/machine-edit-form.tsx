@@ -38,8 +38,8 @@ const MACHINE_SPECS = {
       { name: 'disk', label: 'Stockage', type: 'text', placeholder: '256GB SSD' },
       { name: 'screenSize', label: 'Taille écran', type: 'text', placeholder: '14 pouces' },
       { name: 'battery', label: 'Batterie', type: 'text', placeholder: '45Wh' },
-      { name: 'windowsVersion', label: 'OS Windows', type: 'select', options: ['Windows 11 Pro', 'Windows 10 Pro', 'Windows 11 Home', 'Ubuntu 22.04', 'macOS Ventura', 'Other'] },
-      { name: 'productKey', label: 'Activation key (Windows)', type: 'text', placeholder: 'XXXXX-XXXXX-XXXXX-XXXXX' },
+      { name: 'windowsVersion', label: 'OS', type: 'select', options: ['Windows 11 Pro', 'Windows 10 Pro', 'Windows 11 Home', 'Ubuntu 22.04', 'Red Hat Enterprise Linux', 'VMware ESXi', 'Other'] },
+      { name: 'productKey', label: 'Clé d\'activation', type: 'text', placeholder: 'XXXXX-XXXXX-XXXXX-XXXXX' },
     ]
   },
   'Desktop': {
@@ -50,7 +50,7 @@ const MACHINE_SPECS = {
       { name: 'gpu', label: 'Carte graphique', type: 'text', placeholder: 'NVIDIA GTX 1650' },
       { name: 'psu', label: 'Alimentation', type: 'text', placeholder: 'XXXXX-XXXXX-XXXXX-XXXXX' },
       { name: 'psu', label: 'Alimentation par activation key', type: 'text', placeholder: 'XXXXX-XXXXX-XXXXX-XXXXX' },
-      { name: 'windowsVersion', label: 'OS Windows', type: 'select', options: ['Windows 11 Pro', 'Windows 10 Pro', 'Windows 11 Home', 'Ubuntu 22.04', 'Other'] },
+      { name: 'windowsVersion', label: 'OS', type: 'select', options: ['Windows 11 Pro', 'Windows 10 Pro', 'Windows 11 Home', 'Ubuntu 22.04', 'Red Hat Enterprise Linux', 'VMware ESXi', 'Other'] },
     ]
   },
   'Server': {
@@ -68,7 +68,7 @@ const MACHINE_SPECS = {
       { name: 'screenSize', label: 'Taille écran', type: 'text', placeholder: '10.2 pouces' },
       { name: 'ram', label: 'RAM', type: 'text', placeholder: '4GB' },
       { name: 'disk', label: 'Stockage', type: 'text', placeholder: '64GB' },
-      { name: 'os', label: 'Système', type: 'text', placeholder: 'Android 13' },
+      { name: 'windowsVersion', label: 'Système', type: 'text', placeholder: 'Android 13' },
       { name: 'connectivity', label: 'Connectivité', type: 'text', placeholder: 'WiFi + 4G' },
     ]
   },
