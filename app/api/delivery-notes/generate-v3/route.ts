@@ -120,6 +120,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Validation: prevent duplicate equipments in the same delivery (by serialNumber or inventoryCode)
+    const seenKeys = new Set()
+    const dupes: string[] = []
+    for (const e of equipments) {
+      const key = (e.serialNumber || '').toString().trim() || (e.inventoryCode || '').toString().trim()
+      if (!key) continue
+      if (seenKeys.has(key)) {
+        dupes.push(key)
+      } else {
+        seenKeys.add(key)
+      }
+    }
+    if (dupes.length > 0) {
+      const uniqueDupes = Array.from(new Set(dupes))
+      return NextResponse.json({ error: `Doublons détectés dans la liste d'équipements: ${uniqueDupes.join(', ')}` }, { status: 400 })
+    }
+
     // Récupérer les informations de l'utilisateur
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -206,9 +223,10 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          // final fallback: map by company code
+          // final fallback: map by company code (ensure GRTU mapping present)
           if (!colorsResolved) {
             const companyColors: { [key: string]: { primary: number[], accent: number[] } } = {
+              'GRTU': { primary: [27, 94, 32], accent: [76, 175, 80] },
               'GREEN': { primary: [27, 94, 32], accent: [76, 175, 80] },
               'TRANS': { primary: [0, 0, 0], accent: [220, 18, 18] },
             }
@@ -348,95 +366,126 @@ export async function POST(request: NextRequest) {
     yPos += 40
 
     // === TABLEAU DES ÉQUIPEMENTS ===
-    // En-tête du tableau
+    // Header du tableau
     doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
     doc.rect(margin, yPos, pageWidth - 2 * margin, 10, "F")
 
     doc.setFont("helvetica", "bold")
     doc.setFontSize(9)
     doc.setTextColor(255, 255, 255)
-    doc.text("#", margin + 3, yPos + 6.5)
-    doc.text("TYPE", margin + 12, yPos + 6.5)
-    doc.text("NUMÉRO DE SÉRIE", margin + 45, yPos + 6.5)
-    doc.text("DÉTAILS", pageWidth - margin - 45, yPos + 6.5)
+
+    // Compute column widths: #, TYPE, SN, Code Inv., DETAILS
+    const tableWidth = pageWidth - 2 * margin
+    // Use proportional widths so DETAILS gets enough space on different page sizes
+    const colIndexW = Math.max(10, Math.round(tableWidth * 0.05))
+    // make type smaller so we can give more width to DETAILS
+    const colTypeW = Math.max(28, Math.round(tableWidth * 0.14))
+    // allow SN and inventory columns to be smaller on narrow pages
+    const colSNW = Math.max(36, Math.round(tableWidth * 0.13))
+    const colInvW = Math.max(36, Math.round(tableWidth * 0.13))
+    const colDetailsW = tableWidth - (colIndexW + colTypeW + colSNW + colInvW)
+
+    // Compute column X positions for accurate top-aligned rendering
+    const xIndex = margin
+    const xType = xIndex + colIndexW
+    const xSN = xType + colTypeW
+    const xInv = xSN + colSNW
+    const xDetails = xInv + colInvW
+
+    // Header labels (use computed X positions)
+    doc.text("#", xIndex + 3, yPos + 6.5)
+    doc.text("TYPE", xType + 2, yPos + 6.5)
+    doc.text("NUMÉRO DE SÉRIE", xSN + 2, yPos + 6.5)
+    doc.text("Code inventaire", xInv + 2, yPos + 6.5)
+    doc.text("DÉTAILS", xDetails + 2, yPos + 6.5)
 
     yPos += 10
 
     // Pour chaque équipement (lignes du tableau)
     equipments.forEach((equipment: any, index: number) => {
-      // Vérifier si on a assez d'espace, sinon nouvelle page
-      if (yPos > pageHeight - 80) {
+
+      // Build SN and Inventory columns separately
+      const serialText = equipment.serialNumber || ''
+      const invText = equipment.inventoryCode ? String(equipment.inventoryCode) : ''
+
+      // Build details: RAM — Processeur | OS | Disque (order requested)
+      const brand = equipment.brand || ''
+      const model = equipment.model || ''
+      const specsArr: string[] = []
+      if (equipment.foundData && 'machineName' in equipment.foundData) {
+        const m = equipment.foundData
+        if (m.ram) specsArr.push(m.ram)
+        if (m.cpu) specsArr.push(m.cpu)
+        if (m.windowsVersion) specsArr.push(m.windowsVersion)
+        if (m.disk) specsArr.push(m.disk)
+      }
+      const specsText = specsArr.filter(Boolean).join(' | ')
+      const detailsMain = [brand, model].filter(Boolean).join(' ')
+      const detailsFull = specsText ? (detailsMain ? `${detailsMain} — ${specsText}` : specsText) : detailsMain
+
+      // Split into wrapped lines for SN, Inv and Details
+      const paddingV = 6
+      const lineH = 5.2 // slightly larger line height for readability
+      const serialLines = doc.splitTextToSize(serialText, Math.max(30, colSNW - 10))
+      const invLines = doc.splitTextToSize(invText, Math.max(30, colInvW - 10))
+      const detailsLines = doc.splitTextToSize(detailsFull || '', Math.max(60, colDetailsW - 12))
+      const maxLines = Math.max(serialLines.length, invLines.length, detailsLines.length, 1)
+      const rowHeight = Math.max(18, maxLines * lineH + paddingV * 2)
+
+      // Page break if needed
+      if (yPos + rowHeight > pageHeight - 80) {
         doc.addPage()
         yPos = margin + 10
       }
 
-      const lineHeight = equipment.serialNumberStatus === 'found' && equipment.foundData ? 18 : 12
-
-      // Fond alterné pour les lignes
+      // Background alternating
       if (index % 2 === 0) {
         doc.setFillColor(250, 250, 250)
-        doc.rect(margin, yPos, pageWidth - 2 * margin, lineHeight, "F")
+        doc.rect(margin, yPos, tableWidth, rowHeight, "F")
       }
 
-      // Bordures des cellules
+      // Bottom border
       doc.setDrawColor(220, 220, 220)
       doc.setLineWidth(0.1)
-      doc.line(margin, yPos + lineHeight, pageWidth - margin, yPos + lineHeight)
+      doc.line(margin, yPos + rowHeight, pageWidth - margin, yPos + rowHeight)
 
-      yPos += 4
+      // Top padding
+      const textY = yPos + paddingV + lineH
 
-      // Numéro
+      // Index
       doc.setFont("helvetica", "bold")
       doc.setFontSize(10)
       doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
-      doc.text(`${index + 1}`, margin + 5, yPos)
+      doc.text(`${index + 1}`, xIndex + 3, textY)
 
       // Type
       doc.setFont("helvetica", "bold")
       doc.setFontSize(10)
       doc.setTextColor(0, 0, 0)
-      doc.text(equipment.type, margin + 12, yPos)
+      doc.text(equipment.type, xType + 2, textY)
 
-      // Numéro de série
+      // SN (top-aligned)
       doc.setFont("helvetica", "normal")
       doc.setFontSize(9)
       doc.setTextColor(60, 60, 60)
-      doc.text(equipment.serialNumber, margin + 45, yPos)
+      serialLines.forEach((ln: string, i: number) => {
+        doc.text(ln, xSN + 2, textY + i * lineH)
+      })
 
-      // Détails si trouvé
-      if (equipment.serialNumberStatus === 'found') {
-        yPos += 5
-        doc.setFont("helvetica", "normal")
-        doc.setFontSize(8)
-        doc.setTextColor(100, 100, 100)
+      // Inventory code (top-aligned)
+      invLines.forEach((ln: string, i: number) => {
+        doc.text(ln, xInv + 2, textY + i * lineH)
+      })
 
-        let details = []
-        if (equipment.brand) details.push(equipment.brand)
-        if (equipment.model) details.push(equipment.model)
-        if (equipment.inventoryCode) details.push(`#${equipment.inventoryCode}`)
+      // Details (top-aligned)
+      doc.setFont("helvetica", "normal")
+      doc.setFontSize(8)
+      doc.setTextColor(100, 100, 100)
+      detailsLines.forEach((ln: string, i: number) => {
+        doc.text(ln, xDetails + 2, textY + i * lineH)
+      })
 
-        if (details.length > 0) {
-          doc.text(details.join(' • '), margin + 12, yPos)
-        }
-
-        // Spécifications techniques (CPU/RAM/Disque)
-        if (equipment.foundData && 'machineName' in equipment.foundData) {
-          const machine = equipment.foundData
-          const specs = []
-          if (machine.cpu) specs.push(machine.cpu)
-          if (machine.ram) specs.push(machine.ram)
-          if (machine.disk) specs.push(machine.disk)
-
-          if (specs.length > 0) {
-            yPos += 4
-            doc.setFontSize(7)
-            doc.setTextColor(120, 120, 120)
-            doc.text(specs.join(' | '), margin + 12, yPos)
-          }
-        }
-      }
-
-      yPos += lineHeight - 3
+      yPos += rowHeight + 2
     })
 
     yPos += 15
@@ -612,7 +661,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Erreur génération bon de livraison:", error)
     return NextResponse.json(
-      { error: "Erreur lors de la génération du PDF" },
+      { error: "Impossible de générer le bon de livraison. Veuillez vérifier les données et réessayer." },
       { status: 500 }
     )
   }

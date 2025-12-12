@@ -185,6 +185,23 @@ export async function POST(req: Request) {
       )
     }
 
+    // Validation: prevent duplicate equipments in the same return note (by serialNumber or inventoryCode)
+    const seenKeys = new Set()
+    const dupes: string[] = []
+    for (const e of equipments) {
+      const key = (e.serialNumber || '').toString().trim() || (e.inventoryCode || '').toString().trim()
+      if (!key) continue
+      if (seenKeys.has(key)) {
+        dupes.push(key)
+      } else {
+        seenKeys.add(key)
+      }
+    }
+    if (dupes.length > 0) {
+      const uniqueDupes = Array.from(new Set(dupes))
+      return NextResponse.json({ error: `Doublons détectés dans la liste d'équipements: ${uniqueDupes.join(', ')}` }, { status: 400 })
+    }
+
     // Récupérer l'utilisateur qui retourne les équipements
     const returnedByUser = await prisma.user.findUnique({
       where: { id: returnedByUserId },
@@ -433,7 +450,8 @@ export async function POST(req: Request) {
         // Add more: 'CODE': [R, G, B]
       };
       if (Object.prototype.hasOwnProperty.call(companyColors, code)) {
-        doc.setTextColor(...companyColors[code as keyof typeof companyColors]);
+        const c = companyColors[code as keyof typeof companyColors] as [number, number, number]
+        doc.setTextColor(c[0], c[1], c[2]);
       } else {
         doc.setTextColor(33, 150, 243); // Default blue
       }
@@ -460,7 +478,8 @@ export async function POST(req: Request) {
         // Add more: 'CODE': [R, G, B]
       };
       if (Object.prototype.hasOwnProperty.call(companyColors, code)) {
-        doc.setDrawColor(...companyColors[code as keyof typeof companyColors]);
+        const c = companyColors[code as keyof typeof companyColors] as [number, number, number]
+        doc.setDrawColor(c[0], c[1], c[2]);
       } else {
         doc.setDrawColor(33, 150, 243); // Default blue
       }
@@ -530,7 +549,8 @@ export async function POST(req: Request) {
         // Add more: 'CODE': [R, G, B]
       };
       if (Object.prototype.hasOwnProperty.call(companyColors, code)) {
-        doc.setFillColor(...companyColors[code as keyof typeof companyColors]);
+        const c = companyColors[code as keyof typeof companyColors] as [number, number, number]
+        doc.setFillColor(c[0], c[1], c[2]);
       } else {
         doc.setFillColor(33, 150, 243); // Default blue
       }
@@ -542,69 +562,117 @@ export async function POST(req: Request) {
     doc.setFont("helvetica", "bold")
     doc.setFontSize(9)
     doc.setTextColor(255, 255, 255)
-    doc.text("#", margin + 3, yPos + 6.5)
-    doc.text("TYPE", margin + 12, yPos + 6.5)
-    doc.text("NUMÉRO DE SÉRIE", margin + 45, yPos + 6.5)
-    doc.text("DÉTAILS", pageWidth - margin - 45, yPos + 6.5)
+
+    // Compute column widths: #, TYPE, SN, Code Inv., DETAILS (match delivery note proportions)
+    const tableWidth = pageWidth - 2 * margin
+    const colIndexW = Math.max(10, Math.round(tableWidth * 0.05))
+    // make type smaller so DETAILS gets more space (match delivery note)
+    const colTypeW = Math.max(28, Math.round(tableWidth * 0.14))
+    const colSNW = Math.max(36, Math.round(tableWidth * 0.13))
+    const colInvW = Math.max(36, Math.round(tableWidth * 0.13))
+    const colDetailsW = tableWidth - (colIndexW + colTypeW + colSNW + colInvW)
+
+    const xIndex = margin
+    const xType = xIndex + colIndexW
+    const xSN = xType + colTypeW
+    const xInv = xSN + colSNW
+    const xDetails = xInv + colInvW
+
+    doc.text("#", xIndex + 3, yPos + 6.5)
+    doc.text("TYPE", xType + 2, yPos + 6.5)
+    doc.text("NUMÉRO DE SÉRIE", xSN + 2, yPos + 6.5)
+    doc.text("Code inventaire", xInv + 2, yPos + 6.5)
+    doc.text("DÉTAILS", xDetails + 2, yPos + 6.5)
 
     yPos += 10
 
     returnNote.equipments.forEach((eq: any, index: number) => {
-      const lineHeight = 18
+      const serialText = eq.serialNumber || ''
+      const invText = eq.inventoryCode ? String(eq.inventoryCode) : ''
 
-      // Vérifier si on a besoin d'une nouvelle page
-      if (yPos + lineHeight > 270) {
+      const brand = eq.brand || ''
+      const model = eq.model || ''
+      // Build two-line details: line1 = Brand Model, line2 = CPU | RAM
+      const detailsMain = [brand, model].filter(Boolean).join(' ')
+      const specLineParts: string[] = []
+      if (eq.cpu) specLineParts.push(eq.cpu)
+      if (eq.ram) specLineParts.push(eq.ram)
+      const specLine = specLineParts.join(' | ')
+
+      const paddingV = 6
+      const lineH = 5.2
+      const serialLines = doc.splitTextToSize(serialText, Math.max(30, colSNW - 10))
+      const invLines = doc.splitTextToSize(invText, Math.max(30, colInvW - 10))
+
+      // Format details into logical pieces to preserve the two-line structure
+      const detailsPieces: string[] = []
+      if (detailsMain) detailsPieces.push(detailsMain)
+      if (specLine) detailsPieces.push(specLine)
+
+      // Split each piece and flatten to get the visual lines
+      const detailsLines: string[] = []
+      for (const piece of detailsPieces) {
+        const wrapped = doc.splitTextToSize(piece, Math.max(60, colDetailsW - 12))
+        if (Array.isArray(wrapped)) {
+          for (const l of wrapped) detailsLines.push(l)
+        } else {
+          detailsLines.push(String(wrapped))
+        }
+      }
+
+      const maxLines = Math.max(serialLines.length, invLines.length, detailsLines.length, 1)
+      const rowHeight = Math.max(18, maxLines * lineH + paddingV * 2)
+
+      if (yPos + rowHeight > 270) {
         doc.addPage()
         yPos = margin
       }
 
-      // Fond alterné pour les lignes
       if (index % 2 === 0) {
         doc.setFillColor(250, 250, 250)
-        doc.rect(margin, yPos, pageWidth - 2 * margin, lineHeight, "F")
+        doc.rect(margin, yPos, tableWidth, rowHeight, "F")
       }
 
-      // Bordures des cellules
       doc.setDrawColor(220, 220, 220)
       doc.setLineWidth(0.1)
-      doc.line(margin, yPos + lineHeight, pageWidth - margin, yPos + lineHeight)
+      doc.line(margin, yPos + rowHeight, pageWidth - margin, yPos + rowHeight)
 
-      yPos += 4
+      const textY = yPos + paddingV + lineH
 
-      // Numéro
+      // Index
       doc.setFont("helvetica", "bold")
       doc.setFontSize(10)
       doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
-      doc.text(`${index + 1}`, margin + 5, yPos)
+      doc.text(`${index + 1}`, xIndex + 3, textY)
 
       // Type
       doc.setFont("helvetica", "bold")
       doc.setFontSize(10)
       doc.setTextColor(0, 0, 0)
-      doc.text(eq.type === "machine" ? "Machine" : "Écran", margin + 12, yPos)
+      doc.text(eq.type === "machine" ? "Machine" : "Écran", xType + 2, textY)
 
-      // Numéro de série
+      // Serial
       doc.setFont("helvetica", "normal")
       doc.setFontSize(9)
       doc.setTextColor(60, 60, 60)
-      doc.text(eq.serialNumber || "", margin + 45, yPos)
+      serialLines.forEach((ln: string, i: number) => {
+        doc.text(ln, xSN + 2, textY + i * lineH)
+      })
 
-      // Détails (ligne suivante)
-      yPos += 5
+      // Inventory
+      invLines.forEach((ln: string, i: number) => {
+        doc.text(ln, xInv + 2, textY + i * lineH)
+      })
+
+      // Details
       doc.setFont("helvetica", "normal")
       doc.setFontSize(8)
       doc.setTextColor(100, 100, 100)
+      detailsLines.forEach((ln: string, i: number) => {
+        doc.text(ln, xDetails + 2, textY + i * lineH)
+      })
 
-      let details = []
-      if (eq.brand) details.push(eq.brand)
-      if (eq.model) details.push(eq.model)
-      if (eq.inventoryCode) details.push(`#${eq.inventoryCode}`)
-
-      if (details.length > 0) {
-        doc.text(details.join(' • '), margin + 12, yPos)
-      }
-
-      yPos += lineHeight - 9
+      yPos += rowHeight + 2
     })
 
     // Notes

@@ -231,7 +231,7 @@ export function DeliveryNoteForm() {
       const result = await response.json()
 
       if (!response.ok) {
-        toast.error(result.error || "Erreur lors de la génération du bon de livraison")
+        toast.error(result.error || "Impossible de générer le bon de livraison. Veuillez vérifier les données et réessayer.")
         return
       }
 
@@ -249,7 +249,7 @@ export function DeliveryNoteForm() {
       router.push("/dashboard/delivery-notes")
       router.refresh()
     } catch (error) {
-      toast.error("Erreur lors de la génération du bon de livraison")
+      toast.error("Impossible de générer le bon de livraison. Veuillez vérifier les données et réessayer.")
       console.error(error)
     } finally {
       setIsLoading(false)
