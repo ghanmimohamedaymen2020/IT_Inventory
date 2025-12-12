@@ -28,6 +28,7 @@ type Machine = {
   vendor: string
   model: string | null
   serialNumber: string
+  windowsVersion?: string | null
   acquisitionDate: Date | null
   warrantyDate: Date | null
   assetStatus: string
@@ -138,7 +139,8 @@ export function MachinesFilter({ machines }: MachinesFilterProps) {
                 <TableHead>Type</TableHead>
                 <TableHead>Marque</TableHead>
                 <TableHead>Modèle</TableHead>
-                <TableHead>N° Série</TableHead>
+                  <TableHead>OS</TableHead>
+                  <TableHead>N° Série</TableHead>
                 <TableHead>Société</TableHead>
                 <TableHead>Date d'Achat</TableHead>
                 <TableHead>Garantie</TableHead>
@@ -168,6 +170,9 @@ export function MachinesFilter({ machines }: MachinesFilterProps) {
                     </TableCell>
                     <TableCell>{machine.vendor}</TableCell>
                     <TableCell>{machine.model || "-"}</TableCell>
+                    <TableCell className="text-sm">
+                      {machine.windowsVersion || "-"}
+                    </TableCell>
                     <TableCell className="font-mono text-xs">
                       {machine.serialNumber}
                     </TableCell>
