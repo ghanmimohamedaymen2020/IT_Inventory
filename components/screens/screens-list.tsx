@@ -37,6 +37,11 @@ interface Screen {
       email: string
     } | null
   } | null
+  company?: {
+    id: string
+    name?: string | null
+    code?: string | null
+  }
   user: {
     id: string
     firstName: string
@@ -56,6 +61,7 @@ export function ScreensList({ initialColumns }: ScreensListProps) {
 
   const allColumns = [
     'inventoryCode',
+    'company',
     'brand',
     'model',
     'size',
@@ -70,6 +76,7 @@ export function ScreensList({ initialColumns }: ScreensListProps) {
 
   const columnLabels: Record<string, string> = {
     inventoryCode: 'Code',
+    company: 'Société',
     brand: 'Marque',
     model: 'Modèle',
     size: 'Taille',
@@ -208,6 +215,7 @@ export function ScreensList({ initialColumns }: ScreensListProps) {
           <TableHeader>
             <TableRow>
               {selectedColumns.includes('inventoryCode') && <TableHead className="w-[110px]">Code</TableHead>}
+              {selectedColumns.includes('company') && <TableHead className="w-[150px]">Société</TableHead>}
               {selectedColumns.includes('brand') && <TableHead className="w-[100px]">Marque</TableHead>}
               {selectedColumns.includes('model') && <TableHead className="w-[100px]">Modèle</TableHead>}
               {selectedColumns.includes('size') && <TableHead className="w-[80px]">Taille</TableHead>}
@@ -232,6 +240,9 @@ export function ScreensList({ initialColumns }: ScreensListProps) {
                 <TableRow key={screen.id}>
                   {selectedColumns.includes('inventoryCode') && (
                     <TableCell className="font-mono text-xs">{screen.inventoryCode}</TableCell>
+                  )}
+                  {selectedColumns.includes('company') && (
+                    <TableCell className="text-sm">{(screen as any).company?.name ?? (screen as any).company?.code ?? (screen.machine as any)?.company?.name ?? (screen.machine as any)?.company?.code ?? '-'}</TableCell>
                   )}
                   {selectedColumns.includes('brand') && (
                     <TableCell className="text-sm">{screen.brand}</TableCell>
