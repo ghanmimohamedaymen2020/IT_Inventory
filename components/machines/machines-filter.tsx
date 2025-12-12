@@ -77,15 +77,24 @@ export function MachinesFilter({ machines }: MachinesFilterProps) {
     'actions'
   ]
 
-  const [selectedColumns, setSelectedColumns] = useState<string[]>(() => {
+  // Start with server-friendly default; read persisted selection on mount to avoid
+  // hydration mismatch between server and client.
+  const [selectedColumns, setSelectedColumns] = useState<string[]>(allColumns)
+
+  // Load persisted columns after mount (client-only)
+  useEffect(() => {
     try {
       const raw = localStorage.getItem('machines_table_columns')
-      if (raw) return JSON.parse(raw)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setSelectedColumns(parsed)
+        }
+      }
     } catch (e) {
       // ignore
     }
-    return allColumns
-  })
+  }, [])
 
   // Persist selection
   useEffect(() => {
