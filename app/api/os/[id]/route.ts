@@ -42,7 +42,17 @@ export async function PATCH(
     if (name !== undefined) updateData.name = name
     if (slug !== undefined) updateData.slug = slug
 
-    const updated = await prisma.operatingSystem.update({
+    // Guard for missing Prisma model
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    if (!prisma || !(prisma as any).operatingSystem) {
+      console.warn('Prisma client missing `operatingSystem`. Cannot update OS until you run `npx prisma generate` and migrate.')
+      return NextResponse.json({ error: 'OS management not available. Please run Prisma generate/migrate.' }, { status: 501 })
+    }
+
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    const updated = await (prisma as any).operatingSystem.update({
       where: { id: params.id },
       data: updateData
     })
@@ -63,9 +73,17 @@ export async function DELETE(
     if (!session || session.user.role !== 'super_admin') {
       return NextResponse.json({ error: 'Accès refusé.' }, { status: 403 })
     }
+    // Guard for missing Prisma model
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    if (!prisma || !(prisma as any).operatingSystem) {
+      console.warn('Prisma client missing `operatingSystem`. Cannot delete OS until you run `npx prisma generate` and migrate.')
+      return NextResponse.json({ error: 'OS management not available. Please run Prisma generate/migrate.' }, { status: 501 })
+    }
 
-    // Prevent deletion if any machine references this OS by name in windowsVersion
-    const os = await prisma.operatingSystem.findUnique({ where: { id: params.id } })
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    const os = await (prisma as any).operatingSystem.findUnique({ where: { id: params.id } })
     if (!os) return NextResponse.json({ error: 'Non trouvé' }, { status: 404 })
 
     const linkedMachines = await prisma.machine.count({ where: { windowsVersion: os.name } })
@@ -73,7 +91,9 @@ export async function DELETE(
       return NextResponse.json({ error: `Impossible de supprimer. Utilisé par ${linkedMachines} machine(s).` }, { status: 400 })
     }
 
-    await prisma.operatingSystem.delete({ where: { id: params.id } })
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    await (prisma as any).operatingSystem.delete({ where: { id: params.id } })
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Erreur suppression OS:', error)
