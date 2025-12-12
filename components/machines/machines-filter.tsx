@@ -56,9 +56,10 @@ type Machine = {
 
 interface MachinesFilterProps {
   machines: Machine[]
+  initialColumns?: string[]
 }
 
-export function MachinesFilter({ machines }: MachinesFilterProps) {
+export function MachinesFilter({ machines, initialColumns }: MachinesFilterProps) {
   const [selectedCompany, setSelectedCompany] = useState<string>("all")
   const [selectedStatus, setSelectedStatus] = useState<string>("all")
   const allColumns = [
@@ -95,27 +96,38 @@ export function MachinesFilter({ machines }: MachinesFilterProps) {
 
   // Start with server-friendly default; read persisted selection on mount to avoid
   // hydration mismatch between server and client.
-  const [selectedColumns, setSelectedColumns] = useState<string[]>(allColumns)
+  // Prefer server-provided initialColumns (from cookie) so server-side render
+  // matches the client's preference and selection survives full page refresh.
+  const [selectedColumns, setSelectedColumns] = useState<string[]>(initialColumns && initialColumns.length > 0 ? initialColumns : allColumns)
 
-  // Load persisted columns before paint (client-only) to avoid visible reset on reload
+  // If server didn't provide initialColumns, try to load persisted columns before paint
   useLayoutEffect(() => {
-    try {
-      const raw = localStorage.getItem('machines_table_columns')
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setSelectedColumns(parsed)
+    if (!initialColumns) {
+      try {
+        const raw = localStorage.getItem('machines_table_columns')
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setSelectedColumns(parsed)
+          }
         }
+      } catch (e) {
+        // ignore
       }
-    } catch (e) {
-      // ignore
     }
-  }, [])
+  }, [initialColumns])
 
-  // Persist selection
+  // Persist selection to localStorage and cookie for server to pick up on next request
   useEffect(() => {
     try {
       localStorage.setItem('machines_table_columns', JSON.stringify(selectedColumns))
+    } catch (e) {}
+
+    try {
+      // store in cookie so server can read it on SSR
+      const cookieValue = encodeURIComponent(JSON.stringify(selectedColumns))
+      // 1 year
+      document.cookie = `machines_table_columns=${cookieValue}; path=/; max-age=${60 * 60 * 24 * 365}`
     } catch (e) {}
   }, [selectedColumns])
 

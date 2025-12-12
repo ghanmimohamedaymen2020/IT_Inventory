@@ -47,6 +47,20 @@ export default async function MachinesPage() {
     }
   })
 
+  // Lire la préférence de colonnes depuis le cookie si présent, pour que
+  // le rendu serveur corresponde à la préférence de l'utilisateur.
+  const cookieStore = await cookies()
+  const colsCookie = cookieStore.get('machines_table_columns')
+  let initialColumns: string[] | undefined = undefined
+  if (colsCookie?.value) {
+    try {
+      const parsed = JSON.parse(decodeURIComponent(colsCookie.value))
+      if (Array.isArray(parsed)) initialColumns = parsed
+    } catch (e) {
+      // ignore parse errors
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -71,7 +85,7 @@ export default async function MachinesPage() {
         </div>
       </div>
 
-      <MachinesFilter machines={machines} />
+      <MachinesFilter machines={machines} initialColumns={initialColumns} />
     </div>
   )
 }
