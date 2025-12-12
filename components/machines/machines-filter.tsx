@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useLayoutEffect } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -12,6 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import ColumnSelector from "@/components/ui/column-selector"
+import { MoreHorizontal } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -47,11 +49,80 @@ type Machine = {
 
 interface MachinesFilterProps {
   machines: Machine[]
+  initialColumns?: string[]
 }
 
-export function MachinesFilter({ machines }: MachinesFilterProps) {
+export function MachinesFilter({ machines, initialColumns }: MachinesFilterProps) {
   const [selectedCompany, setSelectedCompany] = useState<string>("all")
   const [selectedStatus, setSelectedStatus] = useState<string>("all")
+  const allColumns = [
+    'inventoryCode',
+    'machineName',
+    'type',
+    'vendor',
+    'model',
+    'windowsVersion',
+    'serialNumber',
+    'company',
+    'acquisitionDate',
+    'warrantyDate',
+    'user',
+    'assetStatus',
+    'actions'
+  ]
+
+  const columnLabels: Record<string, string> = {
+    inventoryCode: 'Code Inventaire',
+    machineName: 'Nom',
+    type: 'Type',
+    vendor: 'Marque',
+    model: 'Modèle',
+    windowsVersion: 'OS',
+    serialNumber: "N° Série",
+    company: 'Société',
+    acquisitionDate: "Date d'Achat",
+    warrantyDate: 'Garantie',
+    user: "Utilisateur Assigné",
+    assetStatus: 'Statut',
+    actions: 'Actions'
+  }
+
+  // Start with server-friendly default; read persisted selection on mount to avoid
+  // hydration mismatch between server and client.
+  // Prefer server-provided initialColumns (from cookie) so server-side render
+  // matches the client's preference and selection survives full page refresh.
+  const [selectedColumns, setSelectedColumns] = useState<string[]>(initialColumns && initialColumns.length > 0 ? initialColumns : allColumns)
+
+  // If server didn't provide initialColumns, try to load persisted columns before paint
+  useLayoutEffect(() => {
+    if (!initialColumns) {
+      try {
+        const raw = localStorage.getItem('machines_table_columns')
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setSelectedColumns(parsed)
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+  }, [initialColumns])
+
+  // Persist selection to localStorage and cookie for server to pick up on next request
+  useEffect(() => {
+    try {
+      localStorage.setItem('machines_table_columns', JSON.stringify(selectedColumns))
+    } catch (e) {}
+
+    try {
+      // store in cookie so server can read it on SSR
+      const cookieValue = encodeURIComponent(JSON.stringify(selectedColumns))
+      // 1 year
+      document.cookie = `machines_table_columns=${cookieValue}; path=/; max-age=${60 * 60 * 24 * 365}`
+    } catch (e) {}
+  }, [selectedColumns])
 
   // Extraire les sociétés uniques
   const companies = useMemo(() => {
@@ -126,6 +197,10 @@ export function MachinesFilter({ machines }: MachinesFilterProps) {
         <div className="text-sm text-muted-foreground">
           {filteredMachines.length} résultat{filteredMachines.length > 1 ? 's' : ''}
         </div>
+
+        <div>
+          <ColumnSelector allColumns={allColumns} columnLabels={columnLabels} selectedColumns={selectedColumns} onChange={setSelectedColumns} triggerLabel="Colonnes" />
+        </div>
       </div>
 
       {/* Tableau */}
@@ -134,94 +209,96 @@ export function MachinesFilter({ machines }: MachinesFilterProps) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Code Inventaire</TableHead>
-                <TableHead>Nom</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Marque</TableHead>
-                <TableHead>Modèle</TableHead>
-                  <TableHead>OS</TableHead>
-                  <TableHead>N° Série</TableHead>
-                <TableHead>Société</TableHead>
-                <TableHead>Date d'Achat</TableHead>
-                <TableHead>Garantie</TableHead>
-                <TableHead>Utilisateur Assigné</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead className="sticky right-0 bg-background">Actions</TableHead>
-              </TableRow>
+                  {selectedColumns.includes('inventoryCode') && <TableHead>Code Inventaire</TableHead>}
+                  {selectedColumns.includes('machineName') && <TableHead>Nom</TableHead>}
+                  {selectedColumns.includes('type') && <TableHead>Type</TableHead>}
+                  {selectedColumns.includes('vendor') && <TableHead>Marque</TableHead>}
+                  {selectedColumns.includes('model') && <TableHead>Modèle</TableHead>}
+                  {selectedColumns.includes('windowsVersion') && <TableHead>OS</TableHead>}
+                  {selectedColumns.includes('serialNumber') && <TableHead>N° Série</TableHead>}
+                  {selectedColumns.includes('company') && <TableHead>Société</TableHead>}
+                  {selectedColumns.includes('acquisitionDate') && <TableHead>Date d'Achat</TableHead>}
+                  {selectedColumns.includes('warrantyDate') && <TableHead>Garantie</TableHead>}
+                  {selectedColumns.includes('user') && <TableHead>Utilisateur Assigné</TableHead>}
+                  {selectedColumns.includes('assetStatus') && <TableHead>Statut</TableHead>}
+                  {selectedColumns.includes('actions') && <TableHead className="sticky right-0 bg-background">Actions</TableHead>}
+                </TableRow>
             </TableHeader>
             <TableBody>
               {filteredMachines.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={Math.max(1, selectedColumns.length)} className="text-center text-muted-foreground py-8">
                     Aucune machine trouvée
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredMachines.map((machine) => (
                   <TableRow key={machine.id}>
-                    <TableCell className="font-mono text-sm">
-                      {machine.inventoryCode}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {machine.machineName || "-"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{machine.type}</Badge>
-                    </TableCell>
-                    <TableCell>{machine.vendor}</TableCell>
-                    <TableCell>{machine.model || "-"}</TableCell>
-                    <TableCell className="text-sm">
-                      {machine.windowsVersion || "-"}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {machine.serialNumber}
-                    </TableCell>
-                    <TableCell>
-                      {machine.company ? (
-                        <div className="text-sm">
-                          <div className="font-medium">{machine.company.name}</div>
-                          <div className="text-muted-foreground text-xs">{machine.company.code}</div>
-                        </div>
-                      ) : (
-                        "-"
-                      )}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {machine.acquisitionDate 
-                        ? new Date(machine.acquisitionDate).toLocaleDateString('fr-FR')
-                        : "-"}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {machine.warrantyDate 
-                        ? new Date(machine.warrantyDate).toLocaleDateString('fr-FR')
-                        : "-"}
-                    </TableCell>
-                    <TableCell>
-                      {machine.user ? (
-                        <div className="text-sm">
-                          <div className="font-medium">
-                            {machine.user.firstName} {machine.user.lastName}
+                    {selectedColumns.includes('inventoryCode') && (
+                      <TableCell className="font-mono text-sm">{machine.inventoryCode}</TableCell>
+                    )}
+                    {selectedColumns.includes('machineName') && (
+                      <TableCell className="font-medium">{machine.machineName || "-"}</TableCell>
+                    )}
+                    {selectedColumns.includes('type') && (
+                      <TableCell><Badge variant="outline">{machine.type}</Badge></TableCell>
+                    )}
+                    {selectedColumns.includes('vendor') && (
+                      <TableCell>{machine.vendor}</TableCell>
+                    )}
+                    {selectedColumns.includes('model') && (
+                      <TableCell>{machine.model || "-"}</TableCell>
+                    )}
+                    {selectedColumns.includes('windowsVersion') && (
+                      <TableCell className="text-sm">{machine.windowsVersion || "-"}</TableCell>
+                    )}
+                    {selectedColumns.includes('serialNumber') && (
+                      <TableCell className="font-mono text-xs">{machine.serialNumber}</TableCell>
+                    )}
+                    {selectedColumns.includes('company') && (
+                      <TableCell>
+                        {machine.company ? (
+                          <div className="text-sm">
+                            <div className="font-medium">{machine.company.name}</div>
+                            <div className="text-muted-foreground text-xs">{machine.company.code}</div>
                           </div>
-                          <div className="text-muted-foreground text-xs">
-                            {machine.user.email}
+                        ) : (
+                          "-"
+                        )}
+                      </TableCell>
+                    )}
+                    {selectedColumns.includes('acquisitionDate') && (
+                      <TableCell className="text-sm">
+                        {machine.acquisitionDate ? new Date(machine.acquisitionDate).toLocaleDateString('fr-FR') : "-"}
+                      </TableCell>
+                    )}
+                    {selectedColumns.includes('warrantyDate') && (
+                      <TableCell className="text-sm">
+                        {machine.warrantyDate ? new Date(machine.warrantyDate).toLocaleDateString('fr-FR') : "-"}
+                      </TableCell>
+                    )}
+                    {selectedColumns.includes('user') && (
+                      <TableCell>
+                        {machine.user ? (
+                          <div className="text-sm">
+                            <div className="font-medium">{machine.user.firstName} {machine.user.lastName}</div>
+                            <div className="text-muted-foreground text-xs">{machine.user.email}</div>
                           </div>
-                        </div>
-                      ) : (
-                        <Badge variant="secondary" className="text-xs">
-                          Non assigné
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {getStatusBadge(machine.assetStatus)}
-                    </TableCell>
-                    <TableCell className="sticky right-0 bg-background">
-                      <Link href={`/dashboard/machines/${machine.id}`}>
-                        <Button variant="outline" size="sm">
-                          Modifier
-                        </Button>
-                      </Link>
-                    </TableCell>
+                        ) : (
+                          <Badge variant="secondary" className="text-xs">Non assigné</Badge>
+                        )}
+                      </TableCell>
+                    )}
+                    {selectedColumns.includes('assetStatus') && (
+                      <TableCell>{getStatusBadge(machine.assetStatus)}</TableCell>
+                    )}
+                    {selectedColumns.includes('actions') && (
+                      <TableCell className="sticky right-0 bg-background">
+                        <Link href={`/dashboard/machines/${machine.id}`}>
+                          <Button variant="outline" size="sm">Modifier</Button>
+                        </Link>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}

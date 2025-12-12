@@ -2,19 +2,12 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
-import { Users as UsersIcon, Plus, Edit } from "lucide-react"
+import { Users as UsersIcon, Plus } from "lucide-react"
 import { ExportMenu } from "@/components/exports/export-menu"
 import { cookies } from "next/headers"
 import { jwtVerify } from "jose"
 import { prisma } from "@/lib/db"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import UsersList from "@/components/users/users-list"
 
 async function getDevSession() {
   const cookieStore = await cookies()
@@ -68,6 +61,16 @@ export default async function UsersPage() {
     }
   }
 
+  const cookieStore = cookies()
+  const raw = cookieStore.get('users_table_columns')
+  let initialColumns: string[] | undefined = undefined
+  if (raw?.value) {
+    try {
+      const parsed = JSON.parse(decodeURIComponent(raw.value))
+      if (Array.isArray(parsed)) initialColumns = parsed
+    } catch (e) {}
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -87,10 +90,9 @@ export default async function UsersPage() {
       </div>
 
       <div className="flex items-center gap-4 mb-2">
-        {/* Filtres à ajouter ici si besoin, exemple : */}
+        {/* Filtres à ajouter here if needed */}
         <select className="border rounded-md px-3 py-2 text-sm text-gray-700 bg-white">
           <option value="">Toutes les sociétés</option>
-          {/* ...autres options dynamiques... */}
         </select>
         <select className="border rounded-md px-3 py-2 text-sm text-gray-700 bg-white">
           <option value="">Tous les rôles</option>
@@ -120,58 +122,7 @@ export default async function UsersPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="border rounded-lg bg-white shadow-sm">
-          <Table className="min-w-full">
-            <TableHeader>
-              <TableRow className="bg-gray-50">
-                <TableHead className="text-base text-gray-800 py-4">Nom</TableHead>
-                <TableHead className="text-base text-gray-800 py-4">Email</TableHead>
-                <TableHead className="text-base text-gray-800 py-4">Téléphone</TableHead>
-                <TableHead className="text-base text-gray-800 py-4">Société</TableHead>
-                <TableHead className="text-base text-gray-800 py-4">Département</TableHead>
-                <TableHead className="text-base text-gray-800 py-4">Rôle</TableHead>
-                <TableHead className="text-right text-base text-gray-800 py-4">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id} className="hover:bg-gray-50 transition">
-                  <TableCell className="text-gray-900 py-3">
-                    {user.firstName} {user.lastName}
-                  </TableCell>
-                  <TableCell className="text-base text-gray-600 py-3">
-                    {user.email}
-                  </TableCell>
-                  <TableCell className="text-base text-gray-600 py-3">
-                    {user.phone || '-'}
-                  </TableCell>
-                  <TableCell className="py-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base text-gray-700 font-medium">{user.company.name}</span>
-                      <Badge variant="outline" className="text-xs font-semibold">
-                        {user.company.code}
-                      </Badge>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-base text-gray-600 py-3">
-                    {user.department || '-'}
-                  </TableCell>
-                  <TableCell className="py-3">
-                    {getRoleBadge(user.role)}
-                  </TableCell>
-                  <TableCell className="text-right py-3">
-                    <Link href={`/dashboard/users/${user.id}`}>
-                      <Button variant="outline" size="sm">
-                        <Edit className="mr-2 h-4 w-4" />
-                        Modifier
-                      </Button>
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <UsersList users={users} initialColumns={initialColumns} />
       )}
     </div>
   )
