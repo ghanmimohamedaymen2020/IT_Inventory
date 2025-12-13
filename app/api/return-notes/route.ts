@@ -586,41 +586,61 @@ export async function POST(req: Request) {
 
     yPos += 10
 
-    returnNote.equipments.forEach((eq: any, index: number) => {
+    for (let index = 0; index < returnNote.equipments.length; index++) {
+      const eq = returnNote.equipments[index]
       const serialText = eq.serialNumber || ''
       const invText = eq.inventoryCode ? String(eq.inventoryCode) : ''
 
       const brand = eq.brand || ''
       const model = eq.model || ''
-      // Build two-line details: line1 = Brand Model, line2 = CPU | RAM
+      // Try to enrich with Machine data when possible
+      let machineData: any = null
+      if (eq.type === 'machine') {
+        try {
+          machineData = await prisma.machine.findUnique({ where: { serialNumber: eq.serialNumber } })
+        } catch (err) {
+          console.warn('Unable to fetch machine for return-note PDF enrichment', eq.serialNumber, err)
+        }
+      }
+
+      // Build labelled specs lines (RAM / CPU / Disk) using machine data first, fallback to eq fields
+      const detailsPieces: Array<{ type: 'text' | 'spec', text?: string, label?: string, value?: string }> = []
       const detailsMain = [brand, model].filter(Boolean).join(' ')
-      const specLineParts: string[] = []
-      if (eq.cpu) specLineParts.push(eq.cpu)
-      if (eq.ram) specLineParts.push(eq.ram)
-      const specLine = specLineParts.join(' | ')
+      if (detailsMain) detailsPieces.push({ type: 'text', text: detailsMain })
+
+      const ramVal = (machineData && machineData.ram) ? machineData.ram : ((eq as any).ram || null)
+      const cpuVal = (machineData && machineData.cpu) ? machineData.cpu : ((eq as any).cpu || null)
+      const diskVal = (machineData && machineData.disk) ? machineData.disk : ((eq as any).disk || null)
+
+      if (ramVal) detailsPieces.push({ type: 'spec', label: 'RAM', value: ramVal })
+      if (cpuVal) detailsPieces.push({ type: 'spec', label: 'CPU', value: cpuVal })
+      if (diskVal) detailsPieces.push({ type: 'spec', label: 'Disk', value: diskVal })
 
       const paddingV = 6
       const lineH = 5.2
       const serialLines = doc.splitTextToSize(serialText, Math.max(30, colSNW - 10))
       const invLines = doc.splitTextToSize(invText, Math.max(30, colInvW - 10))
 
-      // Format details into logical pieces to preserve the two-line structure
-      const detailsPieces: string[] = []
-      if (detailsMain) detailsPieces.push(detailsMain)
-      if (specLine) detailsPieces.push(specLine)
-
-      // Split each piece and flatten to get the visual lines
-      const detailsLines: string[] = []
+      const detailsVisualLines: string[] = []
       for (const piece of detailsPieces) {
-        const wrapped = doc.splitTextToSize(piece, Math.max(60, colDetailsW - 12))
-        if (Array.isArray(wrapped)) {
-          for (const l of wrapped) detailsLines.push(l)
-        } else {
-          detailsLines.push(String(wrapped))
+        if (piece.type === 'text' && piece.text) {
+          const wrapped = doc.splitTextToSize(piece.text, Math.max(60, colDetailsW - 12))
+          if (Array.isArray(wrapped)) detailsVisualLines.push(...wrapped)
+          else detailsVisualLines.push(String(wrapped))
+        } else if (piece.type === 'spec' && piece.label && piece.value) {
+          const labelWidth = doc.getTextWidth(`${piece.label}: `)
+          const available = Math.max(40, colDetailsW - 12 - labelWidth)
+          const wrappedValue = doc.splitTextToSize(piece.value, available)
+          if (Array.isArray(wrappedValue)) {
+            detailsVisualLines.push(`${piece.label}: ${wrappedValue[0]}`)
+            for (let i = 1; i < wrappedValue.length; i++) detailsVisualLines.push(`  ${wrappedValue[i]}`)
+          } else {
+            detailsVisualLines.push(`${piece.label}: ${wrappedValue}`)
+          }
         }
       }
 
-      const maxLines = Math.max(serialLines.length, invLines.length, detailsLines.length, 1)
+      const maxLines = Math.max(serialLines.length, invLines.length, detailsVisualLines.length || 1, 1)
       const rowHeight = Math.max(18, maxLines * lineH + paddingV * 2)
 
       if (yPos + rowHeight > 270) {
@@ -645,11 +665,29 @@ export async function POST(req: Request) {
       doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
       doc.text(`${index + 1}`, xIndex + 3, textY)
 
-      // Type
+      // Type (prefer specific machine subtype when available)
       doc.setFont("helvetica", "bold")
       doc.setFontSize(10)
       doc.setTextColor(0, 0, 0)
-      doc.text(eq.type === "machine" ? "Machine" : "Écran", xType + 2, textY)
+      const computeDisplayType = (rawType: any, machine?: any) => {
+        if (machine && machine.type) {
+          const t = machine.type.toString().toLowerCase()
+          switch (t) {
+            case 'laptop': return 'Portable'
+            case 'desktop': return 'Bureau'
+            case 'server': return 'Serveur'
+            case 'workstation': return 'Station de travail'
+            default: return t.charAt(0).toUpperCase() + t.slice(1)
+          }
+        }
+        if (!rawType) return ''
+        if (rawType === 'machine') return 'Machine'
+        if (rawType === 'screen' || rawType === 'Écran') return 'Écran'
+        return rawType.toString().charAt(0).toUpperCase() + rawType.toString().slice(1)
+      }
+
+      const displayType = computeDisplayType(eq.type, machineData)
+      doc.text(displayType, xType + 2, textY)
 
       // Serial
       doc.setFont("helvetica", "normal")
@@ -664,16 +702,31 @@ export async function POST(req: Request) {
         doc.text(ln, xInv + 2, textY + i * lineH)
       })
 
-      // Details
-      doc.setFont("helvetica", "normal")
+      // Details — render brand/model and labelled specs with bold labels
       doc.setFontSize(8)
-      doc.setTextColor(100, 100, 100)
-      detailsLines.forEach((ln: string, i: number) => {
-        doc.text(ln, xDetails + 2, textY + i * lineH)
-      })
+      const detailsStartX = xDetails + 2
+      for (let i = 0; i < detailsVisualLines.length; i++) {
+        const ln = detailsVisualLines[i]
+        const specMatch = ln.match(/^([A-Za-z]+:)\s*(.*)$/)
+        if (specMatch) {
+          const label = specMatch[1]
+          const rest = specMatch[2]
+          doc.setFont("helvetica", "bold")
+          doc.setTextColor(0, 0, 0)
+          doc.text(label, detailsStartX, textY + i * lineH)
+          const lw = doc.getTextWidth(label + ' ')
+          doc.setFont("helvetica", "normal")
+          doc.setTextColor(100, 100, 100)
+          doc.text(rest, detailsStartX + lw, textY + i * lineH)
+        } else {
+          doc.setFont("helvetica", "normal")
+          doc.setTextColor(100, 100, 100)
+          doc.text(ln, detailsStartX, textY + i * lineH)
+        }
+      }
 
       yPos += rowHeight + 2
-    })
+    }
 
     // Notes
     if (notes) {

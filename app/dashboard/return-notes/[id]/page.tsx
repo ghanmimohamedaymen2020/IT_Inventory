@@ -171,7 +171,20 @@ export default function ReturnNoteDetailPage() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Badge variant="outline">
-                        {equipment.type === "machine" ? "Machine" : "Écran"}
+                        {(() => {
+                          const t = equipment.type || ''
+                          const lt = t.toString().toLowerCase()
+                          switch (lt) {
+                            case 'laptop': return 'Portable'
+                            case 'desktop': return 'Bureau'
+                            case 'server': return 'Serveur'
+                            case 'workstation': return 'Station de travail'
+                            case 'machine': return 'Machine'
+                            case 'screen': return 'Écran'
+                            case 'écran': return 'Écran'
+                            default: return t.charAt(0).toUpperCase() + t.slice(1)
+                          }
+                        })()}
                       </Badge>
                       <span className="font-medium">{equipment.serialNumber}</span>
                     </div>
