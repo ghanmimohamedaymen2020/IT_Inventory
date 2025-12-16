@@ -84,7 +84,8 @@ export default function CreateReturnNotePage() {
 
       if (machine) {
         const equipment: Equipment = {
-          type: "machine",
+          // store specific machine subtype if available (laptop/desktop/etc.)
+          type: machine.type || "machine",
           serialNumber: machine.serialNumber,
           brand: machine.vendor,
           model: machine.model,

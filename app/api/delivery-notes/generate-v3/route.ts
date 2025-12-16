@@ -408,28 +408,53 @@ export async function POST(request: NextRequest) {
       const serialText = equipment.serialNumber || ''
       const invText = equipment.inventoryCode ? String(equipment.inventoryCode) : ''
 
-      // Build details: RAM — Processeur | OS | Disque (order requested)
+      // Build details: Brand/Model then labelled specs (RAM, CPU, Disk)
       const brand = equipment.brand || ''
       const model = equipment.model || ''
-      const specsArr: string[] = []
+
+      // Prepare visual detail lines: first line = brand + model, following lines = labelled specs
+      const detailsPieces: Array<{ type: 'text' | 'spec', text?: string, label?: string, value?: string }> = []
+      const detailsMain = [brand, model].filter(Boolean).join(' ')
+      if (detailsMain) {
+        detailsPieces.push({ type: 'text', text: detailsMain })
+      }
+
       if (equipment.foundData && 'machineName' in equipment.foundData) {
         const m = equipment.foundData
-        if (m.ram) specsArr.push(m.ram)
-        if (m.cpu) specsArr.push(m.cpu)
-        if (m.windowsVersion) specsArr.push(m.windowsVersion)
-        if (m.disk) specsArr.push(m.disk)
+        if (m.ram) detailsPieces.push({ type: 'spec', label: 'RAM', value: m.ram })
+        if (m.cpu) detailsPieces.push({ type: 'spec', label: 'CPU', value: m.cpu })
+        if (m.disk) detailsPieces.push({ type: 'spec', label: 'Disk', value: m.disk })
       }
-      const specsText = specsArr.filter(Boolean).join(' | ')
-      const detailsMain = [brand, model].filter(Boolean).join(' ')
-      const detailsFull = specsText ? (detailsMain ? `${detailsMain} — ${specsText}` : specsText) : detailsMain
 
-      // Split into wrapped lines for SN, Inv and Details
+      // Split into wrapped lines for SN, Inv and Details (we'll handle spec rendering specially)
       const paddingV = 6
       const lineH = 5.2 // slightly larger line height for readability
       const serialLines = doc.splitTextToSize(serialText, Math.max(30, colSNW - 10))
       const invLines = doc.splitTextToSize(invText, Math.max(30, colInvW - 10))
-      const detailsLines = doc.splitTextToSize(detailsFull || '', Math.max(60, colDetailsW - 12))
-      const maxLines = Math.max(serialLines.length, invLines.length, detailsLines.length, 1)
+
+      // Compute how many visual lines the details will occupy
+      const detailsVisualLines: string[] = []
+      for (const piece of detailsPieces) {
+        if (piece.type === 'text' && piece.text) {
+          const wrapped = doc.splitTextToSize(piece.text, Math.max(60, colDetailsW - 12))
+          if (Array.isArray(wrapped)) detailsVisualLines.push(...wrapped)
+          else detailsVisualLines.push(String(wrapped))
+        } else if (piece.type === 'spec' && piece.label && piece.value) {
+          // reserve one visual line per spec (value may wrap if too long)
+          const labelWidth = doc.getTextWidth(`${piece.label}: `)
+          const available = Math.max(40, colDetailsW - 12 - labelWidth)
+          const wrappedValue = doc.splitTextToSize(piece.value, available)
+          if (Array.isArray(wrappedValue)) {
+            // first visual line contains label + first chunk, remaining chunks are additional visual lines
+            detailsVisualLines.push(`${piece.label}: ${wrappedValue[0]}`)
+            for (let i = 1; i < wrappedValue.length; i++) detailsVisualLines.push(`  ${wrappedValue[i]}`)
+          } else {
+            detailsVisualLines.push(`${piece.label}: ${wrappedValue}`)
+          }
+        }
+      }
+
+      const maxLines = Math.max(serialLines.length, invLines.length, detailsVisualLines.length || 1, 1)
       const rowHeight = Math.max(18, maxLines * lineH + paddingV * 2)
 
       // Page break if needed
@@ -458,11 +483,29 @@ export async function POST(request: NextRequest) {
       doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
       doc.text(`${index + 1}`, xIndex + 3, textY)
 
-      // Type
+      // Type (prefer specific machine subtype when available)
       doc.setFont("helvetica", "bold")
       doc.setFontSize(10)
       doc.setTextColor(0, 0, 0)
-      doc.text(equipment.type, xType + 2, textY)
+      const computeDisplayType = (rawType: any, foundData?: any) => {
+        if (foundData && foundData.type) {
+          const t = foundData.type.toString().toLowerCase()
+          switch (t) {
+            case 'laptop': return 'Portable'
+            case 'desktop': return 'Bureau'
+            case 'server': return 'Serveur'
+            case 'workstation': return 'Station de travail'
+            default: return t.charAt(0).toUpperCase() + t.slice(1)
+          }
+        }
+        if (!rawType) return ''
+        if (rawType === 'machine') return 'Machine'
+        if (rawType === 'screen' || rawType === 'Écran') return 'Écran'
+        return rawType.toString().charAt(0).toUpperCase() + rawType.toString().slice(1)
+      }
+
+      const displayType = computeDisplayType(equipment.type, equipment.foundData)
+      doc.text(displayType, xType + 2, textY)
 
       // SN (top-aligned)
       doc.setFont("helvetica", "normal")
@@ -477,13 +520,30 @@ export async function POST(request: NextRequest) {
         doc.text(ln, xInv + 2, textY + i * lineH)
       })
 
-      // Details (top-aligned)
-      doc.setFont("helvetica", "normal")
+      // Details (top-aligned) — render brand/model and labelled specs; make labels bold
       doc.setFontSize(8)
-      doc.setTextColor(100, 100, 100)
-      detailsLines.forEach((ln: string, i: number) => {
-        doc.text(ln, xDetails + 2, textY + i * lineH)
-      })
+      const detailsStartX = xDetails + 2
+      for (let i = 0; i < detailsVisualLines.length; i++) {
+        const ln = detailsVisualLines[i]
+        // If line starts with a spec label pattern like "LABEL: " we split to bold the label
+        const specMatch = ln.match(/^([A-Za-z]+:)\s*(.*)$/)
+        if (specMatch) {
+          const label = specMatch[1]
+          const rest = specMatch[2]
+          doc.setFont("helvetica", "bold")
+          doc.setTextColor(0, 0, 0)
+          doc.text(label, detailsStartX, textY + i * lineH)
+          const lw = doc.getTextWidth(label + ' ')
+          doc.setFont("helvetica", "normal")
+          doc.setTextColor(100, 100, 100)
+          doc.text(rest, detailsStartX + lw, textY + i * lineH)
+        } else {
+          // normal line
+          doc.setFont("helvetica", "normal")
+          doc.setTextColor(100, 100, 100)
+          doc.text(ln, detailsStartX, textY + i * lineH)
+        }
+      }
 
       yPos += rowHeight + 2
     })
