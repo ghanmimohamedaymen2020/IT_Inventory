@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useLayoutEffect } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
 import {
   Table,
@@ -14,13 +15,7 @@ import {
 } from "@/components/ui/table"
 import ColumnSelector from "@/components/ui/column-selector"
 import { MoreHorizontal } from "lucide-react"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+// Select replaced by compact DropdownMenu for multi-select companies
 
 type Machine = {
   id: string
@@ -53,8 +48,8 @@ interface MachinesFilterProps {
 }
 
 export function MachinesFilter({ machines, initialColumns }: MachinesFilterProps) {
-  const [selectedCompany, setSelectedCompany] = useState<string>("all")
-  const [selectedStatus, setSelectedStatus] = useState<string>("all")
+  const [selectedCompanies, setSelectedCompanies] = useState<string[]>([])
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
   const allColumns = [
     'inventoryCode',
     'machineName',
@@ -135,14 +130,29 @@ export function MachinesFilter({ machines, initialColumns }: MachinesFilterProps
     return Array.from(uniqueCompanies.values())
   }, [machines])
 
+  const statusOptions = [
+    { value: 'en_stock', label: 'En stock' },
+    { value: 'en_service', label: 'En service' },
+    { value: 'maintenance', label: 'Maintenance' },
+    { value: 'retiré', label: 'Retiré' },
+  ]
+
+  const toggleStatus = (s: string) => {
+    setSelectedStatuses(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])
+  }
+
+  const toggleCompany = (id: string) => {
+    setSelectedCompanies(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
   // Filtrer les machines
   const filteredMachines = useMemo(() => {
     return machines.filter(machine => {
-      const companyMatch = selectedCompany === "all" || machine.company?.id === selectedCompany
-      const statusMatch = selectedStatus === "all" || machine.assetStatus === selectedStatus
+      const companyMatch = selectedCompanies.length === 0 || (machine.company && selectedCompanies.includes(machine.company.id))
+      const statusMatch = selectedStatuses.length === 0 || selectedStatuses.includes(machine.assetStatus)
       return companyMatch && statusMatch
     })
-  }, [machines, selectedCompany, selectedStatus])
+  }, [machines, selectedCompanies, selectedStatuses])
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -163,35 +173,38 @@ export function MachinesFilter({ machines, initialColumns }: MachinesFilterProps
     <div className="space-y-4">
       {/* Filtres */}
       <div className="flex gap-4 items-center">
-        <div className="flex-1">
-          <Select value={selectedCompany} onValueChange={setSelectedCompany}>
-            <SelectTrigger className="w-[250px]">
-              <SelectValue placeholder="Filtrer par société" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Toutes les sociétés</SelectItem>
+        <div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">Sociétés{selectedCompanies.length > 0 ? ` (${selectedCompanies.length})` : ''}</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent sideOffset={6} className="w-[260px]">
+              <DropdownMenuLabel>Filtrer par sociétés</DropdownMenuLabel>
+              <DropdownMenuSeparator />
               {companies.map((company) => (
-                <SelectItem key={company.id} value={company.id}>
+                <DropdownMenuCheckboxItem key={company.id} checked={selectedCompanies.includes(company.id)} onCheckedChange={() => toggleCompany(company.id)}>
                   {company.name} ({company.code})
-                </SelectItem>
+                </DropdownMenuCheckboxItem>
               ))}
-            </SelectContent>
-          </Select>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
-        <div className="flex-1">
-          <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Filtrer par statut" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous les statuts</SelectItem>
-              <SelectItem value="en_stock">En stock</SelectItem>
-              <SelectItem value="en_service">En service</SelectItem>
-              <SelectItem value="maintenance">Maintenance</SelectItem>
-              <SelectItem value="retiré">Retiré</SelectItem>
-            </SelectContent>
-          </Select>
+        <div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">Statuts{selectedStatuses.length > 0 ? ` (${selectedStatuses.length})` : ''}</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent sideOffset={6} className="w-[220px]">
+              <DropdownMenuLabel>Filtrer par statut</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {statusOptions.map(s => (
+                <DropdownMenuCheckboxItem key={s.value} checked={selectedStatuses.includes(s.value)} onCheckedChange={() => toggleStatus(s.value)}>
+                  {s.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <div className="text-sm text-muted-foreground">
