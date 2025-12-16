@@ -293,14 +293,23 @@ export async function POST(req: Request) {
       },
     })
 
-    // Mettre à jour le statut des équipements
+    // Mettre à jour le statut des équipements selon la destination
+    const destToStatus = (dest: string) => {
+      const d = String(dest || '').toLowerCase()
+      if (d === 'reparation' || d === 'réparation') return 'maintenance'
+      if (d === 'rebut') return 'retiré'
+      return 'en_stock'
+    }
+
+    const targetStatus = destToStatus(destination)
+
     for (const equipment of equipments) {
       if (equipment.type === 'machine') {
         // Mettre à jour la machine
         await prisma.machine.updateMany({
           where: { serialNumber: equipment.serialNumber },
           data: {
-            assetStatus: 'en_stock',
+            assetStatus: targetStatus,
             userId: null, // Désassigner l'utilisateur
           },
         })
@@ -310,6 +319,7 @@ export async function POST(req: Request) {
           where: { serialNumber: equipment.serialNumber },
           data: {
             userId: null, // Désassigner l'utilisateur
+            assetStatus: targetStatus,
           },
         })
       }

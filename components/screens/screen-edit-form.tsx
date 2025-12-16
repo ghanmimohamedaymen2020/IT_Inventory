@@ -39,21 +39,23 @@ const screenSchema = z.object({
   warrantyDate: z.string().optional(),
   machineId: z.string().optional(),
   companyId: z.string().min(1, "La société est requise"),
+  assetStatus: z.enum(['en_stock', 'en_service', 'maintenance', 'retiré']),
 })
 
 type ScreenFormData = z.infer<typeof screenSchema>
 
 interface ScreenEditFormProps {
-  screen: {
+    screen: {
     id: string
     brand: string
     serialNumber: string
     inventoryCode: string
-    model: string | null
-    size: string | null
-    resolution: string | null
-    purchaseDate: string | null
-    warrantyDate: string | null
+      model: string | null
+      size: string | null
+      resolution: string | null
+      purchaseDate: string | null
+      warrantyDate: string | null
+      assetStatus: string
     machine: {
       id: string
       machineName: string
@@ -130,6 +132,7 @@ export function ScreenEditForm({ screen }: ScreenEditFormProps) {
       warrantyDate: screen.warrantyDate ? new Date(screen.warrantyDate).toISOString().split('T')[0] : "",
       machineId: screen.machine?.id || "",
       companyId: screen.company.id,
+      assetStatus: (screen as any).assetStatus || 'en_stock',
     },
   })
 
@@ -362,6 +365,24 @@ export function ScreenEditForm({ screen }: ScreenEditFormProps) {
                   "L'utilisateur est assigné via la machine associée"
                 }
               </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="assetStatus">Statut *</Label>
+              <Select
+                onValueChange={(value) => setValue("assetStatus", value as any)}
+                defaultValue={watch("assetStatus")}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un statut" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="en_stock">En Stock</SelectItem>
+                  <SelectItem value="en_service">En Service</SelectItem>
+                  <SelectItem value="maintenance">Maintenance</SelectItem>
+                  <SelectItem value="retiré">Retiré</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>

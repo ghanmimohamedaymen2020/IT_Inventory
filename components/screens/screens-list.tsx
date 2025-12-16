@@ -60,6 +60,7 @@ export function ScreensList({ initialColumns }: ScreensListProps) {
   const [isLoading, setIsLoading] = useState(true)
 
   const allColumns = [
+    'assetStatus',
     'inventoryCode',
     'company',
     'brand',
@@ -75,6 +76,7 @@ export function ScreensList({ initialColumns }: ScreensListProps) {
   ]
 
   const columnLabels: Record<string, string> = {
+    assetStatus: 'Statut',
     inventoryCode: 'Code',
     company: 'Société',
     brand: 'Marque',
@@ -145,27 +147,26 @@ export function ScreensList({ initialColumns }: ScreensListProps) {
     return Array.from(map.values())
   }, [screens])
 
-  const usersList = useMemo(() => {
-    const map = new Map<string, { id: string; firstName: string; lastName: string; email: string }>()
-    screens.forEach(s => {
-      const u = s.user || s.machine?.user
-      if (u && u.id && !map.has(u.id)) map.set(u.id, u)
-    })
-    return Array.from(map.values())
-  }, [screens])
+  const statusOptions = [
+    { value: 'all', label: 'Tous les statuts' },
+    { value: 'en_stock', label: 'En stock' },
+    { value: 'en_service', label: 'En service' },
+    { value: 'maintenance', label: 'Maintenance' },
+    { value: 'retiré', label: 'Retiré' },
+  ]
 
   const [selectedCompany, setSelectedCompany] = useState<string | null>("all")
-  const [selectedUser, setSelectedUser] = useState<string | null>("all")
+  const [selectedStatus, setSelectedStatus] = useState<string | null>("all")
 
   const filteredScreens = useMemo(() => {
     return screens.filter(s => {
       const companyId = (s as any).company?.id || (s.machine as any)?.company?.id
-      const userId = s.user?.id || (s.machine as any)?.user?.id
+      const status = (s as any).assetStatus || (s.machine as any)?.assetStatus || 'en_stock'
       const companyMatch = selectedCompany === 'all' || !selectedCompany || companyId === selectedCompany
-      const userMatch = selectedUser === 'all' || !selectedUser || userId === selectedUser
-      return companyMatch && userMatch
+      const statusMatch = selectedStatus === 'all' || !selectedStatus || status === selectedStatus
+      return companyMatch && statusMatch
     })
-  }, [screens, selectedCompany, selectedUser])
+  }, [screens, selectedCompany, selectedStatus])
 
   if (isLoading) {
     return <div className="text-center py-8">Chargement...</div>
@@ -187,14 +188,13 @@ export function ScreensList({ initialColumns }: ScreensListProps) {
             </SelectContent>
           </Select>
 
-          <Select value={selectedUser ?? "all"} onValueChange={(v) => setSelectedUser(v)}>
+          <Select value={selectedStatus ?? "all"} onValueChange={(v) => setSelectedStatus(v)}>
             <SelectTrigger className="w-[220px]">
-              <SelectValue placeholder="Tous les utilisateurs" />
+              <SelectValue placeholder="Tous les statuts" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tous les utilisateurs</SelectItem>
-              {usersList.map(u => (
-                <SelectItem key={u.id} value={u.id}>{u.firstName} {u.lastName}</SelectItem>
+              {statusOptions.map(s => (
+                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -223,6 +223,7 @@ export function ScreensList({ initialColumns }: ScreensListProps) {
               {selectedColumns.includes('serialNumber') && <TableHead className="w-[120px]">N° Série</TableHead>}
               {selectedColumns.includes('purchaseDate') && <TableHead className="w-[100px]">Achat</TableHead>}
               {selectedColumns.includes('warrantyDate') && <TableHead className="w-[100px]">Garantie</TableHead>}
+              {selectedColumns.includes('assetStatus') && <TableHead className="w-[110px]">Statut</TableHead>}
               {selectedColumns.includes('machine') && <TableHead className="w-[150px]">Machine</TableHead>}
               {selectedColumns.includes('user') && <TableHead className="w-[200px]">Utilisateur</TableHead>}
               {selectedColumns.includes('actions') && <TableHead className="w-[100px]">Actions</TableHead>}
@@ -264,6 +265,20 @@ export function ScreensList({ initialColumns }: ScreensListProps) {
                   )}
                   {selectedColumns.includes('warrantyDate') && (
                     <TableCell className="text-xs">{screen.warrantyDate ? new Date(screen.warrantyDate).toLocaleDateString('fr-FR') : "-"}</TableCell>
+                  )}
+                  {selectedColumns.includes('assetStatus') && (
+                    <TableCell>
+                      {(() => {
+                        const status = (screen as any).assetStatus || (screen.machine as any)?.assetStatus || 'en_stock'
+                        switch (status) {
+                          case 'en_service': return <Badge className="bg-green-500">En service</Badge>
+                          case 'maintenance': return <Badge className="bg-orange-500">Maintenance</Badge>
+                          case 'en_stock': return <Badge variant="secondary">En stock</Badge>
+                          case 'retiré': return <Badge variant="destructive">Retiré</Badge>
+                          default: return <Badge variant="outline">{status}</Badge>
+                        }
+                      })()}
+                    </TableCell>
                   )}
                   {selectedColumns.includes('machine') && (
                     <TableCell>{screen.machine ? <div className="text-xs"><div className="font-medium">{screen.machine.machineName}</div><div className="text-muted-foreground">{screen.machine.inventoryCode}</div></div> : "-"}</TableCell>

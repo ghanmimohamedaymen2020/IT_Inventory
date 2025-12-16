@@ -41,7 +41,7 @@ export async function PATCH(
 ) {
   try {
     const body = await request.json()
-    const { brand, serialNumber, model, size, resolution, machineId, purchaseDate, warrantyDate, companyId } = body
+    const { brand, serialNumber, model, size, resolution, machineId, purchaseDate, warrantyDate, companyId, assetStatus } = body
 
     const screen = await prisma.screen.update({
       where: { id: params.id },
@@ -55,6 +55,7 @@ export async function PATCH(
         purchaseDate: purchaseDate ? new Date(purchaseDate) : null,
         warrantyDate: warrantyDate ? new Date(warrantyDate) : null,
         companyId,
+        ...(assetStatus ? { assetStatus } : {}),
       },
       include: {
         machine: true,

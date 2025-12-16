@@ -621,7 +621,8 @@ export async function POST(request: NextRequest) {
             await prisma.screen.update({
               where: { serialNumber: equipment.serialNumber },
               data: { 
-                userId: userId
+                userId: userId,
+                assetStatus: 'en_service'
               }
             })
           } catch (error) {

@@ -111,6 +111,7 @@ model Screen {
   resolution    String?
   purchaseDate  DateTime?
   warrantyDate  DateTime?
+  assetStatus   String    @default("en_stock")
   machineId     String?
   userId        String?
   companyId     String
