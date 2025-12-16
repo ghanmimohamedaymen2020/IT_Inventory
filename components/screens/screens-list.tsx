@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import ColumnSelector from "@/components/ui/column-selector"
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu"
 import { useMemo } from "react"
 
 interface Screen {
@@ -148,25 +148,32 @@ export function ScreensList({ initialColumns }: ScreensListProps) {
   }, [screens])
 
   const statusOptions = [
-    { value: 'all', label: 'Tous les statuts' },
     { value: 'en_stock', label: 'En stock' },
     { value: 'en_service', label: 'En service' },
     { value: 'maintenance', label: 'Maintenance' },
     { value: 'retiré', label: 'Retiré' },
   ]
 
-  const [selectedCompany, setSelectedCompany] = useState<string | null>("all")
-  const [selectedStatus, setSelectedStatus] = useState<string | null>("all")
+  const [selectedCompanies, setSelectedCompanies] = useState<string[]>([])
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
+
+  const toggleCompany = (id: string) => {
+    setSelectedCompanies(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  const toggleStatus = (status: string) => {
+    setSelectedStatuses(prev => prev.includes(status) ? prev.filter(x => x !== status) : [...prev, status])
+  }
 
   const filteredScreens = useMemo(() => {
     return screens.filter(s => {
       const companyId = (s as any).company?.id || (s.machine as any)?.company?.id
       const status = (s as any).assetStatus || (s.machine as any)?.assetStatus || 'en_stock'
-      const companyMatch = selectedCompany === 'all' || !selectedCompany || companyId === selectedCompany
-      const statusMatch = selectedStatus === 'all' || !selectedStatus || status === selectedStatus
+      const companyMatch = selectedCompanies.length === 0 || companyId == null || selectedCompanies.includes(companyId)
+      const statusMatch = selectedStatuses.length === 0 || selectedStatuses.includes(status)
       return companyMatch && statusMatch
     })
-  }, [screens, selectedCompany, selectedStatus])
+  }, [screens, selectedCompanies, selectedStatuses])
 
   if (isLoading) {
     return <div className="text-center py-8">Chargement...</div>
@@ -176,35 +183,40 @@ export function ScreensList({ initialColumns }: ScreensListProps) {
     <div className="space-y-4">
       <div className="flex justify-between items-center gap-4">
         <div className="flex items-center gap-3">
-            <Select value={selectedCompany ?? "all"} onValueChange={(v) => setSelectedCompany(v)}>
-            <SelectTrigger className="w-[220px]">
-              <SelectValue placeholder="Toutes les sociétés" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Toutes les sociétés</SelectItem>
-              {companies.map((c: any) => (
-                <SelectItem key={c.id} value={c.id}>{c.name ?? c.code ?? c.id}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={selectedStatus ?? "all"} onValueChange={(v) => setSelectedStatus(v)}>
-            <SelectTrigger className="w-[220px]">
-              <SelectValue placeholder="Tous les statuts" />
-            </SelectTrigger>
-            <SelectContent>
-              {statusOptions.map(s => (
-                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex items-center gap-3">
           <Button onClick={() => router.push("/dashboard/screens/create") }>
             <Plus className="h-4 w-4 mr-2" />
             Ajouter un écran
           </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">Sociétés</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent sideOffset={6} className="w-[220px]">
+              <DropdownMenuLabel>Filtrer par société</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {companies.map((c: any) => (
+                <DropdownMenuCheckboxItem key={c.id} checked={selectedCompanies.includes(c.id)} onCheckedChange={() => toggleCompany(c.id)}>
+                  {c.name ?? c.code ?? c.id}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">Statuts</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent sideOffset={6} className="w-[220px]">
+              <DropdownMenuLabel>Filtrer par statut</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {statusOptions.map(s => (
+                <DropdownMenuCheckboxItem key={s.value} checked={selectedStatuses.includes(s.value)} onCheckedChange={() => toggleStatus(s.value)}>
+                  {s.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <ColumnSelector allColumns={allColumns} columnLabels={columnLabels} selectedColumns={selectedColumns} onChange={setSelectedColumns} />
         </div>
@@ -230,14 +242,14 @@ export function ScreensList({ initialColumns }: ScreensListProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {screens.length === 0 ? (
+            {filteredScreens.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={Math.max(1, selectedColumns.length)} className="text-center text-muted-foreground">
                   Aucun écran trouvé
                 </TableCell>
               </TableRow>
             ) : (
-              screens.map((screen) => (
+              filteredScreens.map((screen) => (
                 <TableRow key={screen.id}>
                   {selectedColumns.includes('inventoryCode') && (
                     <TableCell className="font-mono text-xs">{screen.inventoryCode}</TableCell>
