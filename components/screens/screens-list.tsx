@@ -175,6 +175,16 @@ export function ScreensList({ initialColumns }: ScreensListProps) {
     })
   }, [screens, selectedCompanies, selectedStatuses])
 
+  const renderStatusBadge = (status: string) => {
+    switch (status) {
+      case 'en_service': return <Badge className="bg-green-500">En service</Badge>
+      case 'maintenance': return <Badge className="bg-orange-500">Maintenance</Badge>
+      case 'en_stock': return <Badge variant="secondary">En stock</Badge>
+      case 'retiré': return <Badge variant="destructive">Retiré</Badge>
+      default: return <Badge variant="outline">{status}</Badge>
+    }
+  }
+
   if (isLoading) {
     return <div className="text-center py-8">Chargement...</div>
   }
@@ -190,7 +200,7 @@ export function ScreensList({ initialColumns }: ScreensListProps) {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">Sociétés</Button>
+              <Button variant="outline" size="sm">Sociétés{selectedCompanies.length > 0 ? ` (${selectedCompanies.length})` : ''}</Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent sideOffset={6} className="w-[220px]">
               <DropdownMenuLabel>Filtrer par société</DropdownMenuLabel>
@@ -205,7 +215,7 @@ export function ScreensList({ initialColumns }: ScreensListProps) {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">Statuts</Button>
+              <Button variant="outline" size="sm">Statuts{selectedStatuses.length > 0 ? ` (${selectedStatuses.length})` : ''}</Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent sideOffset={6} className="w-[220px]">
               <DropdownMenuLabel>Filtrer par statut</DropdownMenuLabel>

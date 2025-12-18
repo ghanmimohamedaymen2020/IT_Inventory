@@ -88,6 +88,7 @@ export default async function DashboardLayout({
     },
     { name: "Installations", href: "/dashboard/installation", icon: "ClipboardList" },
     { name: "Logiciels", href: "/dashboard/software", icon: "AppWindow" },
+    { name: "Interventions", href: "/dashboard/interventions", icon: "FileText" },
   ]
 
   // Ajouter l'admin pour les rôles appropriés

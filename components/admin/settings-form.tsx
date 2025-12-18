@@ -16,6 +16,15 @@ const DEFAULT_DEPARTMENTS = ["Documentation", "IT", "Operations", "Sales", "Brok
 const DEFAULT_GLOBAL_EMAILS = ["support@greentunisie.com", "sales@greentunisie.com", "accounting@greentunisie.com", "operations@greentunisie.com", "it@greentunisie.com"]
 const DEFAULT_MACHINE_TYPES = ["Laptop", "Desktop", "Server", "Tablet"]
 const DEFAULT_OS = ["Windows 11 Pro", "Windows 10 Pro", "Windows 11 Home", "Ubuntu 22.04", "Ubuntu 20.04", "macOS Ventura"]
+const DEFAULT_SOFTWARES = [
+  'MS Office 2016',
+  'MS Teams',
+  'Antivirus (Sentinel)',
+  'Cisco AnyConnect',
+  'TeamViewer',
+  'Zoom',
+  'Chrome',
+]
 
 interface CompanyWithLogo {
   id: string
@@ -32,7 +41,9 @@ export function SettingsForm() {
   const [globalEmails, setGlobalEmails] = useState<string[]>([])
   const [machineTypes, setMachineTypes] = useState<string[]>([])
   const [operatingSystems, setOperatingSystems] = useState<string[]>([])
+  const [softwareListState, setSoftwareListState] = useState<string[]>([])
   const [newOs, setNewOs] = useState("")
+  const [newSoftware, setNewSoftware] = useState("")
   const [newCompany, setNewCompany] = useState("")
   const [newCompanyCode, setNewCompanyCode] = useState("")
   const [newOffice, setNewOffice] = useState("")
@@ -59,8 +70,10 @@ export function SettingsForm() {
     setDepartments(savedDepartments ? JSON.parse(savedDepartments) : DEFAULT_DEPARTMENTS)
     setGlobalEmails(savedGlobalEmails ? JSON.parse(savedGlobalEmails) : DEFAULT_GLOBAL_EMAILS)
     setMachineTypes(savedMachineTypes ? JSON.parse(savedMachineTypes) : DEFAULT_MACHINE_TYPES);
+    const savedSoftwares = localStorage.getItem('custom_softwares')
+    setSoftwareListState(savedSoftwares ? JSON.parse(savedSoftwares) : DEFAULT_SOFTWARES);
     // Load OS from API or defaults
-    (async () => {
+    ;(async () => {
       try {
         const res = await fetch('/api/os')
         if (res.ok) {
@@ -102,6 +115,11 @@ export function SettingsForm() {
     } else {
       localStorage.setItem('custom_offices', JSON.stringify(data))
     }
+  }
+
+  const saveSoftwareList = (data: string[]) => {
+    setSoftwareListState(data)
+    localStorage.setItem('custom_softwares', JSON.stringify(data))
   }
 
   const addCompany = async () => {
@@ -349,6 +367,27 @@ export function SettingsForm() {
     saveToStorage('machineTypes', updated)
     setNewMachineType("")
     toast.success("Type de machine ajouté")
+  }
+
+  const addSoftware = () => {
+    if (!newSoftware.trim()) {
+      toast.error("Veuillez entrer un nom de logiciel")
+      return
+    }
+    if (softwareListState.includes(newSoftware.trim())) {
+      toast.error("Ce logiciel existe déjà")
+      return
+    }
+    const updated = [...softwareListState, newSoftware.trim()]
+    saveSoftwareList(updated)
+    setNewSoftware("")
+    toast.success("Logiciel ajouté")
+  }
+
+  const removeSoftware = (name: string) => {
+    const updated = softwareListState.filter(s => s !== name)
+    saveSoftwareList(updated)
+    toast.success("Logiciel supprimé")
   }
 
   const addOs = async () => {
@@ -759,6 +798,40 @@ export function SettingsForm() {
                 {os}
                 <button
                   onClick={() => removeOs(os)}
+                  className="ml-2 hover:text-destructive"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        </div>
+
+        {/* Logiciels */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Label className="text-lg font-semibold">Logiciels (Fiche d'intervention)</Label>
+            <Badge variant="secondary">{softwareListState.length} logiciel(s)</Badge>
+          </div>
+
+          <div className="flex gap-2">
+            <Input
+              value={newSoftware}
+              onChange={(e) => setNewSoftware(e.target.value)}
+              placeholder="Nouveau logiciel..."
+              onKeyPress={(e) => e.key === 'Enter' && addSoftware()}
+            />
+            <Button onClick={addSoftware} size="icon">
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {softwareListState.map((s) => (
+              <Badge key={s} variant="outline" className="px-3 py-1.5 text-sm">
+                {s}
+                <button
+                  onClick={() => removeSoftware(s)}
                   className="ml-2 hover:text-destructive"
                 >
                   <Trash2 className="h-3 w-3" />
