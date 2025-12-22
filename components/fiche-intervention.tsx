@@ -244,7 +244,7 @@ export default function FicheIntervention() {
         dateFin,
         notes,
         sn,
-        machineInf        git pusho,
+        machineInfo,
         softwares: checkedSofts,
       }
 
