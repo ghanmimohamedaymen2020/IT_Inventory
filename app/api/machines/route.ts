@@ -151,10 +151,11 @@ export async function POST(req: NextRequest) {
         vendor: data.brand,
         model: data.model,
         acquisitionDate: data.purchaseDate ? new Date(data.purchaseDate) : new Date(),
-        windowsVersion: data.os,
-        cpu: data.processor,
-        ram: data.ram,
-        disk: data.storage,
+        windowsVersion: data.windowsVersion || data.os || null,
+        productKey: data.productKey || null,
+        cpu: data.processor || data.cpu || null,
+        ram: data.ram || null,
+        disk: data.storage || data.disk || null,
         warrantyDate: data.warrantyEndDate ? new Date(data.warrantyEndDate) : null,
         assetStatus: data.status === 'active' ? 'en_service' : 
                      data.status === 'maintenance' ? 'maintenance' : 

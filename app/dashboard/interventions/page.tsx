@@ -6,9 +6,9 @@ export const metadata = {
 
 export default function Page() {
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">Interventions</h1>
-      <div className="max-w-4xl">
+    <div className="p-3">
+      <h1 className="text-xl font-semibold mb-3">Interventions</h1>
+      <div className="max-w-3xl">
         <FicheIntervention />
       </div>
     </div>

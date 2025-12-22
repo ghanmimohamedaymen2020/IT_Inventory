@@ -40,42 +40,30 @@ export default function FicheIntervention() {
     logoUrl = "/logos/green-1765139730896.png"
   }
   const [softwares, setSoftwares] = useState<string[]>([])
-  const [selected, setSelected] = useState<Record<string, boolean>>({})
+  const [selectedSoft, setSelectedSoft] = useState<Record<string, boolean>>({})
+  const [softFilter, setSoftFilter] = useState<string>("")
   const [users, setUsers] = useState<any[]>([])
   const [selectedUserId, setSelectedUserId] = useState<string>("")
-  const [service, setService] = useState("")
-  const [date, setDate] = useState(new Date().toISOString().slice(0,10))
+  const toLocalDatetime = (d = new Date()) => {
+    const dt = new Date(d)
+    dt.setMinutes(dt.getMinutes() - dt.getTimezoneOffset())
+    return dt.toISOString().slice(0,16) // YYYY-MM-DDTHH:MM
+  }
+
+  const [dateDebut, setDateDebut] = useState<string>(toLocalDatetime())
+  const [dateFin, setDateFin] = useState<string>(toLocalDatetime())
+  const [dateRangeValid, setDateRangeValid] = useState<boolean>(true)
+  const [durationStr, setDurationStr] = useState<string>('')
   const [notes, setNotes] = useState("")
   const [companyName, setCompanyName] = useState("")
   const [machines, setMachines] = useState<Machine[]>([])
   const [sn, setSn] = useState("")
   const [machineInfo, setMachineInfo] = useState<Partial<Machine>>({})
+  const [snExists, setSnExists] = useState<boolean | null>(null)
+  const [snTypeValid, setSnTypeValid] = useState<boolean | null>(null)
+  const [snError, setSnError] = useState<string>("")
 
   useEffect(() => {
-    // Logiciels (clé conforme à la config)
-    try {
-      const raw = localStorage.getItem('custom_softwares')
-      let list: string[] = []
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw)
-          if (Array.isArray(parsed) && parsed.every(x => typeof x === 'string')) {
-            list = parsed
-          } else {
-            console.error('custom_softwares mal formaté:', parsed)
-          }
-        } catch (err) {
-          console.error('Erreur parsing custom_softwares:', err)
-        }
-      }
-      setSoftwares(list)
-      const init: Record<string, boolean> = {}
-      list.forEach((s: string) => { init[s] = false })
-      setSelected(init)
-    } catch (e) {
-      setSoftwares([])
-      console.error('localStorage inaccessible ou erreur inattendue:', e)
-    }
     // Utilisateurs
     fetch('/api/users').then(async (res) => {
       if (res.ok) {
@@ -104,33 +92,156 @@ export default function FicheIntervention() {
     })
   }, [])
 
-  // Auto-remplir machine par SN
+  // Auto-remplir machine par SN et valider le type
   useEffect(() => {
     if (!sn) {
       setMachineInfo({})
+      setSnExists(null)
+      setSnTypeValid(null)
+      setSnError("")
       return
     }
     const found = machines.find(m => m.serialNumber && m.serialNumber.toLowerCase() === sn.toLowerCase())
-    if (found) setMachineInfo(found)
-    else setMachineInfo({})
+    if (found) {
+      setMachineInfo(found)
+      setSnExists(true)
+      const t = (found.type || '').toLowerCase()
+      const allowed = ['laptop','portable','notebook','notebook pc','desktop','pc','server','serveur','tablet','tablet pc','smartphone','phone','mobile']
+      const disallowedKeywords = ['screen','monitor','écran','ecran']
+      if (disallowedKeywords.some(k => t.includes(k))) {
+        setSnTypeValid(false)
+        setSnError('Type non supporté : écran / moniteur (utiliser une machine)')
+      } else if (allowed.some(a => t.includes(a))) {
+        setSnTypeValid(true)
+        setSnError("")
+      } else {
+        setSnTypeValid(false)
+        setSnError(`Type inconnu (« ${found.type || '—'} »). Autorisé: laptop/desktop/server/tablet/smartphone`)
+      }
+    } else {
+      setMachineInfo({})
+      setSnExists(false)
+      setSnTypeValid(false)
+      setSnError('SN introuvable')
+    }
   }, [sn, machines])
 
-  const toggle = (name: string) => {
-    setSelected(prev => ({ ...prev, [name]: !prev[name] }))
+  // Calculate duration and validate date range whenever dates change
+  useEffect(() => {
+    // compute working duration based on schedule 08:30-13:00 and 14:00-17:30
+    if (!dateDebut || !dateFin) {
+      setDurationStr('')
+      setDateRangeValid(true)
+      return
+    }
+    try {
+      const s = new Date(dateDebut)
+      const e = new Date(dateFin)
+      if (isNaN(s.getTime()) || isNaN(e.getTime())) {
+        setDurationStr('Date invalide')
+        setDateRangeValid(false)
+        return
+      }
+      if (e.getTime() < s.getTime()) {
+        setDurationStr('Plage non valide')
+        setDateRangeValid(false)
+        return
+      }
+
+      const overlapMinutes = (aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) => {
+        const startMs = Math.max(aStart.getTime(), bStart.getTime())
+        const endMs = Math.min(aEnd.getTime(), bEnd.getTime())
+        return Math.max(0, Math.floor((endMs - startMs) / 60000))
+      }
+
+      const getWorkWindowsForDay = (day: Date): [Date, Date][] => {
+        const y = day.getFullYear()
+        const m = day.getMonth()
+        const d = day.getDate()
+        const dow = day.getDay()
+        switch (dow) {
+          case 0:
+            return []
+          case 6:
+            return [[new Date(y, m, d, 9, 0), new Date(y, m, d, 12, 30)]]
+          case 5:
+            return [
+              [new Date(y, m, d, 8, 0), new Date(y, m, d, 12, 30)],
+              [new Date(y, m, d, 14, 0), new Date(y, m, d, 17, 0)]
+            ]
+          default:
+            return [
+              [new Date(y, m, d, 8, 30), new Date(y, m, d, 13, 0)],
+              [new Date(y, m, d, 14, 0), new Date(y, m, d, 17, 30)]
+            ]
+        }
+      }
+
+      let totalMinutes = 0
+      const cur = new Date(s.getFullYear(), s.getMonth(), s.getDate())
+      const endDay = new Date(e.getFullYear(), e.getMonth(), e.getDate())
+
+      while (cur.getTime() <= endDay.getTime()) {
+        const windows = getWorkWindowsForDay(cur)
+        for (const [wStart, wEnd] of windows) {
+          totalMinutes += overlapMinutes(s, e, wStart, wEnd)
+        }
+        cur.setDate(cur.getDate() + 1)
+      }
+
+      const hours = Math.floor(totalMinutes / 60)
+      const minutes = totalMinutes % 60
+      setDurationStr(hours > 0 ? `${hours}h ${minutes}min` : `${minutes}min`)
+      setDateRangeValid(true)
+    } catch (err) {
+      setDurationStr('Erreur')
+      setDateRangeValid(false)
+    }
+  }, [dateDebut, dateFin])
+
+  // Charger logiciels depuis localStorage (clé: custom_softwares)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('custom_softwares')
+      let list: string[] = []
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw)
+          if (Array.isArray(parsed) && parsed.every(x => typeof x === 'string')) {
+            list = parsed
+          } else {
+            console.error('custom_softwares mal formaté:', parsed)
+          }
+        } catch (err) {
+          console.error('Erreur parsing custom_softwares:', err)
+        }
+      }
+      setSoftwares(list)
+      const init: Record<string, boolean> = {}
+      list.forEach((s: string) => { init[s] = false })
+      setSelectedSoft(init)
+    } catch (e) {
+      setSoftwares([])
+      setSelectedSoft({})
+      console.error('localStorage inaccessible ou erreur inattendue:', e)
+    }
+  }, [])
+
+  const toggleSoftware = (name: string) => {
+    setSelectedSoft(prev => ({ ...prev, [name]: !prev[name] }))
   }
 
   // Génération PDF via l'API serveur pour utiliser le logo lié à l'utilisateur
   const handleGeneratePDF = async () => {
-    try {
       if (!selectedUserId) {
         alert('Veuillez sélectionner un utilisateur avant de générer le PDF.')
         return
       }
-      const checkedSofts = Object.keys(selected).filter(k => selected[k])
+      const checkedSofts = Object.keys(selectedSoft).filter(k => selectedSoft[k])
       const payload = {
         userId: selectedUserId,
-        service,
-        date,
+        dateDebut,
+        dateFin,
         notes,
         sn,
         machineInfo,
@@ -155,28 +266,26 @@ export default function FicheIntervention() {
       } else {
         alert('PDF généré, mais aucun URL retourné')
       }
-    } catch (err) {
-      console.error(err)
-      alert('Erreur serveur lors de la génération du PDF')
     }
-  }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold">Fiche d'intervention</h2>
-        <div className="flex gap-2">
-          <Button onClick={() => window.print()} variant="outline">Imprimer</Button>
-          <Button onClick={handleGeneratePDF} variant="default" disabled={!selectedUserId}>Générer PDF</Button>
+    <div className="p-4 bg-white border rounded-md shadow-sm">
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <h2 className="text-lg font-medium">Fiche d'intervention</h2>
+          <p className="text-xs text-muted-foreground">Compact · Génération de fichier</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button onClick={handleGeneratePDF} variant="default" className="h-8 px-3 text-sm" disabled={!(selectedUserId && snExists && snTypeValid)}>Générer PDF</Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
         <div>
-          <label className="block text-sm text-muted-foreground">Utilisateur</label>
+          <label className="block text-xs text-muted-foreground">Utilisateur</label>
           <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Sélectionner un utilisateur" />
+            <SelectTrigger className="w-full h-8">
+              <SelectValue placeholder="Sélectionner" />
             </SelectTrigger>
             <SelectContent>
               {users.map(u => (
@@ -186,67 +295,64 @@ export default function FicheIntervention() {
           </Select>
         </div>
         <div>
-          <label className="block text-sm text-muted-foreground">Société</label>
-          <Input value={companyName} readOnly />
+          <label className="block text-xs text-muted-foreground">Date début</label>
+          <Input type="datetime-local" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} className="h-8" />
         </div>
+
         <div>
-          <label className="block text-sm text-muted-foreground">Service</label>
-          <Input value={service} onChange={(e) => setService(e.target.value)} />
+          <label className="block text-xs text-muted-foreground">Date fin</label>
+          <Input type="datetime-local" value={dateFin} onChange={(e) => setDateFin(e.target.value)} className="h-8" />
         </div>
+
         <div>
-          <label className="block text-sm text-muted-foreground">Date</label>
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <label className="block text-xs text-muted-foreground">N° de série (SN)</label>
+          <Input value={sn} onChange={e => setSn(e.target.value)} placeholder="SN..." className="h-8" />
+          {snError && <p className="text-xs text-red-600 mt-1">{snError}</p>}
+        </div>
+
+        <div>
+          <p className="text-xs text-muted-foreground">Durée: <span className={`font-medium ${!dateRangeValid ? 'text-red-600' : ''}`}>{durationStr || '—'}</span></p>
+          {!dateRangeValid && <p className="text-xs text-red-600">Vérifiez que la date de début est antérieure à la date de fin.</p>}
         </div>
       </div>
 
-      <div className="mb-4">
-        <label className="block text-sm text-muted-foreground mb-2">Travaux effectués / Notes</label>
-        <textarea className="w-full border rounded p-2" rows={6} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      {/* Les champs auto-remplis (société / code inventaire / modèle) sont masqués — conservés côté serveur si nécessaire */}
+
+      <div className="mb-3">
+        <label className="block text-xs text-muted-foreground mb-1">Travaux effectués / Notes</label>
+        <textarea className="w-full border rounded p-2 text-sm h-28 resize-y" rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} />
       </div>
 
-      <div className="mb-4">
-        <h3 className="font-medium mb-2">Liste des logiciels</h3>
-          <div>
-            <label className="block text-sm text-muted-foreground">N° de série (SN)</label>
-            <Input value={sn} onChange={e => setSn(e.target.value)} placeholder="Entrer le SN..." />
-          </div>
-          <div>
-            <label className="block text-sm text-muted-foreground">Code inventaire</label>
-            <Input value={machineInfo.inventoryCode || ""} readOnly />
-          </div>
-          <div>
-            <label className="block text-sm text-muted-foreground">Marque</label>
-            <Input value={machineInfo.vendor || ""} readOnly />
-          </div>
-          <div>
-            <label className="block text-sm text-muted-foreground">Modèle</label>
-            <Input value={machineInfo.model || ""} readOnly />
-          </div>
-          <div>
-            <label className="block text-sm text-muted-foreground">Type</label>
-            <Input value={machineInfo.type || ""} readOnly />
-          </div>
-        <div className="grid grid-cols-2 gap-2">
-          {softwares.length === 0 ? (
-            <div className="text-sm text-muted-foreground">Aucun logiciel configuré. Configurez-les dans Paramètres &gt; Logiciels.</div>
-          ) : (
-            softwares.map(s => (
-              <label key={s} className="flex items-center gap-2">
-                <input type="checkbox" checked={!!selected[s]} onChange={() => toggle(s)} />
-                <span className="text-sm">{s}</span>
-              </label>
-            ))
-          )}
-        </div>
+      <div className="mb-3">
+        <h3 className="text-sm font-medium mb-2">Logiciels</h3>
+        {softwares.length === 0 ? (
+          <div className="text-xs text-muted-foreground">Aucun logiciel configuré. Configurez-les dans Paramètres → Logiciels.</div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 mb-2">
+              <Input placeholder="Filtrer les logiciels..." value={softFilter} onChange={e => setSoftFilter(e.target.value)} className="h-8" />
+              <div className="text-xs text-muted-foreground">{softwares.length} total</div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+              {softwares
+                .filter(s => s.toLowerCase().includes(softFilter.trim().toLowerCase()))
+                .map(s => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => toggleSoftware(s)}
+                    className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border transition-colors ${selectedSoft[s] ? 'bg-primary text-white border-primary' : 'bg-muted/10 text-muted-foreground hover:border-border'}`}>
+                    <input type="checkbox" checked={!!selectedSoft[s]} readOnly className="w-4 h-4" />
+                    <span className="truncate">{s}</span>
+                  </button>
+                ))}
+            </div>
+          </>
+        )}
       </div>
 
-      <div className="mt-6">
-        <Button onClick={() => {
-          const checked = Object.keys(selected).filter(k => selected[k])
-          const payload = { companyName, service, date, notes, softwares: checked }
-          console.log('Fiche:', payload)
-          window.print()
-        }}>Générer / Imprimer</Button>
+      <div className="flex items-center justify-end gap-2 mt-2">
+        <Button onClick={handleGeneratePDF} className="h-8 px-3 text-sm" disabled={!(selectedUserId && snExists && snTypeValid)}>Générer</Button>
       </div>
     </div>
   )

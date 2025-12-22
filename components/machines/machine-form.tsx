@@ -36,7 +36,7 @@ const MACHINE_SPECS = {
       { name: 'ram', label: 'RAM', placeholder: '16GB DDR4' },
       { name: 'disk', label: 'Stockage', placeholder: '512GB SSD + 1TB HDD' },
       { name: 'gpu', label: 'Carte graphique', placeholder: 'NVIDIA GTX 1650' },
-      { name: 'psu', label: 'Alimentation par activation key', placeholder: 'XXXXX-XXXXX-XXXXX-XXXXX' },
+      { name: 'productKey', label: 'Clé d\'activation', placeholder: 'XXXXX-XXXXX-XXXXX-XXXXX' },
       { name: 'windowsVersion', label: 'OS', type: 'select', options: ['Windows 11 Pro', 'Windows 10 Pro', 'Windows 11 Home', 'Ubuntu 22.04', 'Ubuntu 20.04', 'Red Hat Enterprise Linux', 'CentOS Stream', 'VMware ESXi', 'Other'] },
     ]
   },
