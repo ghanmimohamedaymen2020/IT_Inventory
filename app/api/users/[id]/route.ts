@@ -144,14 +144,32 @@ export async function DELETE(
       return NextResponse.json({ error: "Vous ne pouvez pas supprimer votre propre compte" }, { status: 400 })
     }
 
+    // Option sécurisée : réaffecter les références (createdBy/installedBy/etc.)
+    // si le paramètre `reassign=yes` est présent. On réaffecte vers l'utilisateur courant.
+    const reassign = req.nextUrl?.searchParams.get('reassign') === 'yes'
+
+    if (reassign) {
+      // Effectuer plusieurs updates dans une transaction pour éviter les violations FK
+      await prisma.$transaction([
+        prisma.deliveryNote.updateMany({ where: { createdById: params.id }, data: { createdById: session.user.id } }),
+        prisma.returnNote.updateMany({ where: { createdById: params.id }, data: { createdById: session.user.id } }),
+        prisma.softwareInstallation.updateMany({ where: { installedById: params.id }, data: { installedById: session.user.id } }),
+        prisma.installationSheet.updateMany({ where: { technicianId: params.id }, data: { technicianId: session.user.id } }),
+        prisma.machine.updateMany({ where: { userId: params.id }, data: { userId: null } }),
+        prisma.screen.updateMany({ where: { userId: params.id }, data: { userId: null } }),
+      ])
+    }
+
     // Supprimer l'utilisateur
-    await prisma.user.delete({
-      where: { id: params.id }
-    })
+    await prisma.user.delete({ where: { id: params.id } })
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error: any) {
     console.error("Erreur DELETE /api/users/[id]:", error)
+    // Si c'est une erreur Prisma, exposer le code pour le debug
+    if (error?.code) {
+      return NextResponse.json({ error: "Erreur serveur", code: error.code, meta: error.meta || null }, { status: 500 })
+    }
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
   }
 }

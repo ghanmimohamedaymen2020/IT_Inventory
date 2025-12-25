@@ -304,22 +304,25 @@ export async function POST(req: Request) {
     const targetStatus = destToStatus(destination)
 
     for (const equipment of equipments) {
-      if (equipment.type === 'machine') {
-        // Mettre à jour la machine
+      const t = String(equipment.type || '').toLowerCase()
+      const screenTypes = ['screen', 'écran', 'ecran']
+
+      if (screenTypes.includes(t)) {
+        // Mettre à jour l'écran (prise en charge des variantes FR/EN)
+        await prisma.screen.updateMany({
+          where: { serialNumber: equipment.serialNumber },
+          data: {
+            userId: null,
+            assetStatus: targetStatus,
+          },
+        })
+      } else {
+        // Par défaut, traiter comme une machine (Desktop, Laptop, Machine, etc.)
         await prisma.machine.updateMany({
           where: { serialNumber: equipment.serialNumber },
           data: {
             assetStatus: targetStatus,
             userId: null, // Désassigner l'utilisateur
-          },
-        })
-      } else if (equipment.type === 'screen') {
-        // Mettre à jour l'écran
-        await prisma.screen.updateMany({
-          where: { serialNumber: equipment.serialNumber },
-          data: {
-            userId: null, // Désassigner l'utilisateur
-            assetStatus: targetStatus,
           },
         })
       }

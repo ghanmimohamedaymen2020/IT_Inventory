@@ -660,34 +660,25 @@ export async function POST(request: NextRequest) {
     // Assigner les machines et écrans à l'utilisateur
     for (const equipment of equipments) {
       if (equipment.serialNumberStatus === 'found' && equipment.foundData) {
-        // Si c'est une machine (Laptop/PC)
-        if ('machineName' in equipment.foundData) {
-          try {
-            await prisma.machine.update({
+        const rawType = String(equipment.type || '')
+        const t = rawType.toLowerCase()
+        const screenTypes = ['screen', 'écran', 'ecran']
+
+        // Treat screen-like types as screens, everything else as machines
+        try {
+          if (screenTypes.includes(t) || ('brand' in equipment.foundData && !('machineName' in equipment.foundData))) {
+            await prisma.screen.updateMany({
               where: { serialNumber: equipment.serialNumber },
-              data: { 
-                userId: userId,
-                assetStatus: 'en_service'
-              }
+              data: { userId: userId, assetStatus: 'en_service' },
             })
-          } catch (error) {
-            console.error(`Erreur mise à jour machine ${equipment.serialNumber}:`, error)
-          }
-        }
-        // Si c'est un écran
-        else if ('brand' in equipment.foundData && equipment.type === 'Écran') {
-          try {
-            // Assigner directement l'utilisateur à l'écran
-            await prisma.screen.update({
+          } else {
+            await prisma.machine.updateMany({
               where: { serialNumber: equipment.serialNumber },
-              data: { 
-                userId: userId,
-                assetStatus: 'en_service'
-              }
+              data: { userId: userId, assetStatus: 'en_service' },
             })
-          } catch (error) {
-            console.error(`Erreur mise à jour écran ${equipment.serialNumber}:`, error)
           }
+        } catch (error) {
+          console.error(`Erreur mise à jour équipement ${equipment.serialNumber}:`, error)
         }
       }
     }

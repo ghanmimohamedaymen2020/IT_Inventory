@@ -11,6 +11,17 @@ import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { Plus, Trash2 } from "lucide-react"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -59,6 +70,7 @@ interface UserEditFormProps {
 export function UserEditForm({ user }: UserEditFormProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [companies, setCompanies] = useState<Array<{ id: string; name: string; code: string }>>([])
   const [offices, setOffices] = useState<string[]>(DEFAULT_OFFICES)
   const [subscriptions, setSubscriptions] = useState<string[]>(DEFAULT_SUBSCRIPTIONS)
@@ -138,6 +150,31 @@ export function UserEditForm({ user }: UserEditFormProps) {
       console.error(error)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    setIsDeleting(true)
+    try {
+      const response = await fetch(`/api/users/${user.id}`, {
+        method: "DELETE",
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        toast.error(result.error || "Erreur lors de la suppression de l'utilisateur")
+        return
+      }
+
+      toast.success("Utilisateur supprimé avec succès")
+      router.push("/dashboard/users")
+      router.refresh()
+    } catch (error) {
+      toast.error("Erreur lors de la suppression de l'utilisateur")
+      console.error(error)
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -380,18 +417,41 @@ export function UserEditForm({ user }: UserEditFormProps) {
       </div>
 
       {/* Actions */}
-      <div className="flex justify-end gap-4">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.back()}
-          disabled={isLoading}
-        >
-          Annuler
-        </Button>
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? "Enregistrement..." : "Enregistrer"}
-        </Button>
+      <div className="flex justify-between items-center">
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button type="button" variant="destructive" disabled={isDeleting}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              Supprimer
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+              <AlertDialogDescription>
+                Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annuler</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDelete}>Supprimer</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.back()}
+            disabled={isLoading}
+          >
+            Annuler
+          </Button>
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? "Enregistrement..." : "Enregistrer"}
+          </Button>
+        </div>
       </div>
     </form>
   )
