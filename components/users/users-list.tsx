@@ -16,6 +16,7 @@ import ColumnSelector from "@/components/ui/column-selector"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { useMemo } from "react"
 import { Edit } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 type User = {
   id: string
@@ -35,9 +36,10 @@ type User = {
 interface UsersListProps {
   users: User[]
   initialColumns?: string[]
+  isSuperAdmin?: boolean
 }
 
-export default function UsersList({ users, initialColumns }: UsersListProps) {
+export default function UsersList({ users, initialColumns, isSuperAdmin }: UsersListProps) {
   const allColumns = ['name','email','phone','company','department','role','actions']
   const columnLabels: Record<string,string> = {
     name: 'Nom',
@@ -93,6 +95,9 @@ export default function UsersList({ users, initialColumns }: UsersListProps) {
 
   const [selectedCompany, setSelectedCompany] = useState<string | null>("all")
   const [selectedRole, setSelectedRole] = useState<string | null>("all")
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [isImporting, setIsImporting] = useState(false)
+  const { toast } = useToast()
 
   const filteredUsers = useMemo(() => {
     return users.filter(u => {
@@ -130,7 +135,46 @@ export default function UsersList({ users, initialColumns }: UsersListProps) {
           <div className="text-sm text-muted-foreground">{filteredUsers.length} résultat{filteredUsers.length > 1 ? 's' : ''}</div>
         </div>
 
-        <div>
+        <div className="flex items-center gap-3">
+          {isSuperAdmin && (
+            <div className="flex items-center gap-2">
+              <input
+                id="users-import-file"
+                type="file"
+                accept=".csv,.txt,.xls,.xlsx"
+                onChange={(e) => {
+                  const f = e.target.files && e.target.files[0]
+                  setImportFile(f || null)
+                }}
+                className="text-sm"
+              />
+              <Button size="sm" disabled={!importFile || isImporting} onClick={async () => {
+                if (!importFile) return
+                setIsImporting(true)
+                try {
+                  const fd = new FormData()
+                  fd.append('file', importFile)
+                  const res = await fetch('/api/users/import', { method: 'POST', body: fd })
+                  const json = await res.json()
+                  if (!res.ok) {
+                    toast({ title: 'Import échoué', description: json?.error || 'Erreur serveur', variant: 'destructive' })
+                  } else {
+                    const msg = `Import terminé — créés: ${json.created || 0}, mis à jour: ${json.updated || 0}, erreurs: ${json.errors?.length || 0}`
+                    toast({ title: 'Import réussi', description: msg })
+                    // refresh the page to show new users
+                    setTimeout(() => { window.location.reload() }, 800)
+                  }
+                } catch (err: any) {
+                  toast({ title: 'Import échoué', description: err?.message || 'Erreur', variant: 'destructive' })
+                } finally {
+                  setIsImporting(false)
+                }
+              }}>
+                {isImporting ? 'Import...' : 'Importer'}
+              </Button>
+            </div>
+          )}
+
           <ColumnSelector allColumns={allColumns} columnLabels={columnLabels} selectedColumns={selectedColumns} onChange={setSelectedColumns} />
         </div>
       </div>

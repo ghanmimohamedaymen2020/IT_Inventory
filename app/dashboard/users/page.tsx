@@ -71,6 +71,8 @@ export default async function UsersPage() {
     } catch (e) {}
   }
 
+  const isSuperAdmin = session.user.role === 'super_admin'
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -112,7 +114,7 @@ export default async function UsersPage() {
           </CardContent>
         </Card>
       ) : (
-        <UsersList users={users} initialColumns={initialColumns} />
+        <UsersList users={users} initialColumns={initialColumns} isSuperAdmin={isSuperAdmin} />
       )}
     </div>
   )

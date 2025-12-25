@@ -1,0 +1,5 @@
+Email,FirstName,LastName,CompanyCode,Role
+superadmin@example.com,Admin,Principal,DEFAULT,super_admin
+alice@example.com,Alice,Martin,ACME,company_admin
+bob@example.com,Bob,Durand,ACME,viewer
+charlie@example.com,Charlie,Petit,DEFAULT,viewer
