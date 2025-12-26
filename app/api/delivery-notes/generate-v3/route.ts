@@ -113,9 +113,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { userId, equipments, notes, consumables } = body
 
-    if (!userId || !equipments || equipments.length === 0) {
+    // Require a user and at least one of equipments or consumables
+    const hasEquipments = Array.isArray(equipments) && equipments.length > 0
+    const hasConsumables = Array.isArray(consumables) && consumables.length > 0
+
+    if (!userId || (!hasEquipments && !hasConsumables)) {
       return NextResponse.json(
-        { error: "Données manquantes" },
+        { error: "Données manquantes: userId et au moins un équipement ou consommable requis" },
         { status: 400 }
       )
     }

@@ -77,6 +77,8 @@ export function DeliveryNoteFormV3() {
   const [selectedUser, setSelectedUser] = useState<string>("")
   const [equipments, setEquipments] = useState<Equipment[]>([])
   const [notes, setNotes] = useState<string>("")
+  const [consumables, setConsumables] = useState<Array<{ id: string; typeName?: string; quantity: number; consumableId?: string }>>([])
+  const [consumableNames, setConsumableNames] = useState<string[]>([])
 
   useEffect(() => {
     // Charger les utilisateurs, machines et écrans
@@ -96,6 +98,11 @@ export function DeliveryNoteFormV3() {
         setScreens(screenList)
       })
       .catch(err => console.error("Erreur chargement données:", err))
+
+    // fetch consumable names for selector
+    fetch('/api/consumable-names').then(r => r.ok ? r.json() : []).then(data => {
+      if (Array.isArray(data)) setConsumableNames(data)
+    }).catch(() => {})
   }, [])
 
   const addEquipment = () => {
@@ -108,6 +115,16 @@ export function DeliveryNoteFormV3() {
       assignedToUser: undefined
     }, ...equipments])
   }
+
+  const addConsumable = () => {
+    setConsumables([{ id: crypto.randomUUID(), typeName: consumableNames[0] || '', quantity: 1 }, ...consumables])
+  }
+
+  const updateConsumable = (id: string, changes: Partial<{ typeName?: string; quantity?: number; consumableId?: string }>) => {
+    setConsumables(consumables.map(c => c.id === id ? { ...c, ...changes } : c))
+  }
+
+  const removeConsumable = (id: string) => setConsumables(consumables.filter(c => c.id !== id))
 
   const removeEquipment = (id: string) => {
     setEquipments(equipments.filter(e => e.id !== id))
@@ -240,32 +257,34 @@ export function DeliveryNoteFormV3() {
       return
     }
 
-    if (equipments.length === 0) {
-      toast.error("Veuillez ajouter au moins un équipement")
+    if (equipments.length === 0 && consumables.length === 0) {
+      toast.error("Veuillez ajouter au moins un équipement ou un consommable")
       return
     }
 
-    // Vérifier que tous les équipements ont un numéro de série
-    const hasEmptyFields = equipments.some(e => !e.serialNumber.trim())
-
-    if (hasEmptyFields) {
-      toast.error("Veuillez remplir le numéro de série pour tous les équipements")
-      return
+    // Vérifier que tous les équipements (s'il y en a) ont un numéro de série
+    if (equipments.length > 0) {
+      const hasEmptyFields = equipments.some(e => !e.serialNumber.trim())
+      if (hasEmptyFields) {
+        toast.error("Veuillez remplir le numéro de série pour tous les équipements")
+        return
+      }
     }
 
-    // Vérifier qu'aucun équipement n'est déjà assigné
-    const alreadyAssignedEquipments = equipments.filter(e => e.alreadyAssigned)
-    
-    if (alreadyAssignedEquipments.length > 0) {
-      const equipmentsList = alreadyAssignedEquipments
-        .map(e => `${e.serialNumber} (assigné à ${e.assignedToUser})`)
-        .join(', ')
-      
-      toast.error(
-        `Impossible de générer le bon de livraison. Ces équipements sont déjà assignés: ${equipmentsList}`,
-        { duration: 8000 }
-      )
-      return
+    // Vérifier qu'aucun équipement n'est déjà assigné (si des équipements sont fournis)
+    if (equipments.length > 0) {
+      const alreadyAssignedEquipments = equipments.filter(e => e.alreadyAssigned)
+      if (alreadyAssignedEquipments.length > 0) {
+        const equipmentsList = alreadyAssignedEquipments
+          .map(e => `${e.serialNumber} (assigné à ${e.assignedToUser})`)
+          .join(', ')
+        
+        toast.error(
+          `Impossible de générer le bon de livraison. Ces équipements sont déjà assignés: ${equipmentsList}`,
+          { duration: 8000 }
+        )
+        return
+      }
     }
 
     setIsLoading(true)
@@ -276,7 +295,8 @@ export function DeliveryNoteFormV3() {
         body: JSON.stringify({
           userId: selectedUser,
           equipments: equipments,
-          notes: notes.trim() || undefined
+          notes: notes.trim() || undefined,
+          consumables: consumables.map(c => ({ consumableId: c.consumableId, typeName: c.typeName, quantity: c.quantity }))
         }),
       })
 
@@ -295,6 +315,7 @@ export function DeliveryNoteFormV3() {
       // Réinitialiser le formulaire
       setSelectedUser("")
       setEquipments([])
+      setConsumables([])
       setNotes("")
       
       router.refresh()
@@ -468,6 +489,53 @@ export function DeliveryNoteFormV3() {
             )}
           </div>
         ))}
+
+        {/* Consommables */}
+        <div className="mt-6">
+          <div className="flex items-center justify-between">
+            <Label className="text-lg font-semibold">Consommables</Label>
+            <Button type="button" onClick={addConsumable} size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              Ajouter un consommable
+            </Button>
+          </div>
+
+          {consumables.length === 0 && (
+            <div className="text-center py-6 text-muted-foreground border-2 border-dashed rounded-lg mt-4">
+              Aucun consommable ajouté.
+            </div>
+          )}
+
+          {consumables.map((c, idx) => (
+            <div key={c.id} className="border rounded-lg p-4 space-y-3 mt-4 bg-card">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium">Consommable #{idx + 1}</h4>
+                <Button type="button" variant="ghost" size="sm" onClick={() => removeConsumable(c.id)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm">Nom / Type</Label>
+                  <Select value={c.typeName || ''} onValueChange={(v) => updateConsumable(c.id, { typeName: v })}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {consumableNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                      <SelectItem key="other" value="other">Autre (laisser vide)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-sm">Quantité</Label>
+                  <Input type="number" className="h-9" value={c.quantity} onChange={(e) => updateConsumable(c.id, { quantity: Number(e.target.value) || 0 })} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
 
         {equipments.length === 0 && (
           <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
