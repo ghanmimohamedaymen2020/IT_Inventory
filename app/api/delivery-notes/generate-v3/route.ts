@@ -770,7 +770,7 @@ export async function POST(request: NextRequest) {
           // if found, validate stock and create history + update quantity
           if (consumableRecord) {
             if (consumableRecord.quantity < qty) {
-              throw new Error(`Stock insuffisant pour le consommable ${consumableRecord.id || consumableRecord.name}`)
+                throw new Error(`Stock insuffisant pour le consommable ${consumableRecord.type?.name ?? consumableRecord.name || consumableRecord.id} (id=${consumableRecord.id}) — disponible ${consumableRecord.quantity}, demandé ${qty}`)
             }
 
             // create a DeliveryItem row so the consumable appears on the BL and in DB
@@ -817,8 +817,13 @@ export async function POST(request: NextRequest) {
       fileName,
       deliveryNoteId: deliveryNote.id,
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error("Erreur génération bon de livraison:", error)
+    // return 400 for insufficient stock so front-end can show a helpful message
+    if (error && typeof error.message === 'string' && error.message.toLowerCase().includes('stock insuffisant')) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+
     return NextResponse.json(
       { error: "Impossible de générer le bon de livraison. Veuillez vérifier les données et réessayer." },
       { status: 500 }
