@@ -328,3 +328,33 @@ model OperatingSystem {
 
   @@index([name])
 }
+
+model ConsumableType {
+  id        String       @id @default(cuid())
+  name      String
+  code      String?      @unique
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  consumables Consumable[]
+
+  @@unique([name])
+}
+
+model Consumable {
+  id           String    @id @default(cuid())
+  typeId       String
+  companyId    String
+  quantity     Int       @default(0)
+  minimumStock Int?      // optional threshold
+  note         String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  type    ConsumableType @relation(fields: [typeId], references: [id])
+  company Company        @relation(fields: [companyId], references: [id])
+
+  @@index([companyId])
+  @@index([typeId])
+  @@unique([companyId, typeId])
+}
