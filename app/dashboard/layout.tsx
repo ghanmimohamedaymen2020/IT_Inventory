@@ -78,6 +78,7 @@ export default async function DashboardLayout({
     { name: "Machines", href: "/dashboard/machines", icon: "Laptop" },
     { name: "Écrans", href: "/dashboard/screens", icon: "Monitor" },
     { name: "Utilisateurs", href: "/dashboard/users", icon: "Users" },
+    { name: "Consommables", href: "/dashboard/consumables", icon: "Package" },
     { 
       name: "Documents", 
       icon: "FileText",
