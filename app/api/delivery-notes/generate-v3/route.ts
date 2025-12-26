@@ -550,6 +550,40 @@ export async function POST(request: NextRequest) {
 
     yPos += 15
 
+    // === CONSOMMABLES (si fournis) ===
+    if (Array.isArray(consumables) && consumables.length > 0) {
+      if (yPos > pageHeight - 120) {
+        doc.addPage()
+        yPos = margin + 10
+      }
+
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(10)
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
+      doc.text("Consommables fournis", margin, yPos)
+      yPos += 8
+
+      doc.setFont("helvetica", "normal")
+      doc.setFontSize(9)
+      doc.setTextColor(60, 60, 60)
+
+      for (const c of consumables) {
+        if (yPos > pageHeight - 60) {
+          doc.addPage()
+          yPos = margin + 10
+        }
+        const qty = Number(c.quantity || 0)
+        if (!qty || qty <= 0) continue
+        // Prefer readable name: typeName > name > sku > id
+        const label = c.typeName || c.name || (c.sku ? `${c.sku}` : (c.consumableId || ''))
+        const line = `- ${label} x ${qty}`
+        doc.text(line, margin + 4, yPos)
+        yPos += 6
+      }
+
+      yPos += 8
+    }
+
     // === NOTES / DÉTAILS SUPPLÉMENTAIRES ===
     if (notes && notes.trim()) {
       if (yPos > pageHeight - 80) {
@@ -717,18 +751,36 @@ export async function POST(request: NextRequest) {
 
           let consumableRecord = null
           if (consumableId) {
-            consumableRecord = await tx.consumable.findUnique({ where: { id: consumableId } })
+            consumableRecord = await tx.consumable.findUnique({ where: { id: consumableId }, include: { type: true } })
           } else if (c.typeId) {
-            consumableRecord = await tx.consumable.findUnique({ where: { id: c.typeId } })
+            // c.typeId may refer to a ConsumableType id; find consumable by typeId and company
+            consumableRecord = await tx.consumable.findFirst({ where: { typeId: c.typeId, companyId: user.companyId }, include: { type: true } })
           } else if (c.typeName) {
-            // try find by company + type
+            // try find by company + type name
             consumableRecord = await tx.consumable.findFirst({ where: { companyId: user.companyId, type: { name: c.typeName } }, include: { type: true } })
+          } else if (c.name) {
+            // accept `name` from older client payloads
+            consumableRecord = await tx.consumable.findFirst({ where: { companyId: user.companyId, type: { name: c.name } }, include: { type: true } })
           }
 
           // if found, validate stock and create history + update quantity
           if (consumableRecord) {
             if (consumableRecord.quantity < qty) {
               throw new Error(`Stock insuffisant pour le consommable ${consumableRecord.id || consumableRecord.name}`)
+            }
+
+            // create a DeliveryItem row so the consumable appears on the BL and in DB
+            try {
+              const desc = `${consumableRecord.type?.name ?? consumableRecord.name}${consumableRecord.sku ? ' (' + consumableRecord.sku + ')' : ''}`
+              await tx.deliveryItem.create({
+                data: {
+                  description: desc,
+                  quantity: qty,
+                  deliveryNoteId: dn.id,
+                }
+              })
+            } catch (err) {
+              console.warn('deliveryItem create failed', err)
             }
 
             // create history entry if model exists
