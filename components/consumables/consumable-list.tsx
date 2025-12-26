@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
@@ -15,20 +15,27 @@ type Consumable = {
   companyId: string
 }
 
-export default function ConsumableList() {
-  const [items, setItems] = useState<Consumable[]>([])
+type Props = {
+  initialCompanies?: Array<{ id: string; name: string }> | null
+  initialItems?: Consumable[] | null
+  initialNames?: string[] | null
+  isSuperAdmin?: boolean
+}
+
+export default function ConsumableList({ initialCompanies = null, initialItems = null, initialNames = null, isSuperAdmin = false }: Props) {
+  const [items, setItems] = useState<Consumable[]>(initialItems || [])
   const [loading, setLoading] = useState(false)
   const [adjustValue, setAdjustValue] = useState<number>(0)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [reason, setReason] = useState<string>('')
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState<string>('')
-  const [consumableNames, setConsumableNames] = useState<string[]>([])
-  const [companies, setCompanies] = useState<Array<{ id: string; name: string }>>([])
+  const [consumableNames, setConsumableNames] = useState<string[]>(initialNames || [])
+  const [companies, setCompanies] = useState<Array<{ id: string; name: string }>>(initialCompanies || [])
   const [newCompanyId, setNewCompanyId] = useState<string | null>(null)
   const [minThreshold, setMinThreshold] = useState<number | null>(null)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     try {
       // Fetch names from API (distinct names from DB)
@@ -67,26 +74,30 @@ export default function ConsumableList() {
       console.error(err)
       toast.error('Impossible de charger les consommables')
     } finally { setLoading(false) }
-  }
+  }, [companies])
 
   useEffect(() => {
     // Load companies first then consumables
     ;(async () => {
       try {
-        const res = await fetch('/api/companies')
-        if (res.ok) {
-          const data = await res.json()
-          const list = Array.isArray(data) ? data : data || []
-          setCompanies(list)
-          if (list.length > 0) setNewCompanyId(list[0].id)
+        if (!initialCompanies) {
+          const res = await fetch('/api/companies')
+          if (res.ok) {
+            const data = await res.json()
+            const list = Array.isArray(data) ? data : data || []
+            setCompanies(list)
+            if (list.length > 0) setNewCompanyId(list[0].id)
+          }
         }
       } catch (err) {
         // ignore
       }
-      // After companies loaded, load consumables and names
+      // After companies loaded (or initial provided), load consumables and names
       await load()
     })()
-  }, [])
+
+    return () => {}
+  }, [load])
 
   const openAdjust = (id: string) => {
     setSelectedId(id)
@@ -220,27 +231,39 @@ export default function ConsumableList() {
                               if (found) {
                                 const res = await fetch(`/api/consumables/${found.id}/adjust`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ change: 1, reason: 'Adjustment from matrix +' }) })
                                 if (!res.ok) throw new Error('Erreur')
+                                const data = await res.json()
+                                const updated = data.consumable || data
+                                setItems((prev) => prev.map(it => it.id === updated.id ? { ...it, quantity: updated.quantity } : it))
                               } else {
                                 const res = await fetch('/api/consumables', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: cn, companyId: company.id, quantity: 1 }) })
                                 if (!res.ok) throw new Error('Erreur création')
+                                const created = await res.json()
+                                // ensure created is in expected shape
+                                setItems((prev) => [...prev, created])
+                                if (!consumableNames.includes(created.name)) setConsumableNames((s) => [...s, created.name])
                               }
-                              await load()
                             } catch (err) {
                               console.error(err)
                               toast.error('Erreur')
                             }
                           }}>+</button>
-                          <button className="px-2 py-1 bg-red-500 text-white rounded text-sm" onClick={async () => {
-                            try {
-                              if (!found) { toast.error('Aucun consommable à diminuer'); return }
-                              const res = await fetch(`/api/consumables/${found.id}/adjust`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ change: -1, reason: 'Adjustment from matrix -' }) })
-                              if (!res.ok) throw new Error('Erreur')
-                              await load()
-                            } catch (err) {
-                              console.error(err)
-                              toast.error('Erreur')
-                            }
-                          }}>-</button>
+                          {isSuperAdmin ? (
+                            <button className="px-2 py-1 bg-red-500 text-white rounded text-sm" onClick={async () => {
+                              try {
+                                if (!found) { toast.error('Aucun consommable à diminuer'); return }
+                                const res = await fetch(`/api/consumables/${found.id}/adjust`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ change: -1, reason: 'Adjustment from matrix -' }) })
+                                if (!res.ok) throw new Error('Erreur')
+                                const data = await res.json()
+                                const updated = data.consumable || data
+                                setItems((prev) => prev.map(it => it.id === updated.id ? { ...it, quantity: updated.quantity } : it))
+                              } catch (err) {
+                                console.error(err)
+                                toast.error('Erreur')
+                              }
+                            }}>-</button>
+                          ) : (
+                            <button className="px-2 py-1 bg-red-500 text-white rounded text-sm opacity-50 cursor-not-allowed" disabled>-</button>
+                          )}
                         </div>
                       </div>
                     </td>

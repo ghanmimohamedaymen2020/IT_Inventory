@@ -55,9 +55,11 @@ export async function POST(
       return NextResponse.json({ error: 'Accès refusé pour cette société' }, { status: 403 })
     }
 
-    // Transaction: create history and update quantity
-    const [history, updated] = await prisma.$transaction([
-      prisma.consumableHistory.create({
+    // Transaction: create history (if model exists) and update quantity
+    const ops: any[] = []
+    const hasHistory = !!(prisma as any).consumableHistory && typeof (prisma as any).consumableHistory.create === 'function'
+    if (hasHistory) {
+      ops.push((prisma as any).consumableHistory.create({
         data: {
           consumableId: id,
           change,
@@ -66,12 +68,13 @@ export async function POST(
           deliveryNoteId: deliveryNoteId || null,
           returnNoteId: returnNoteId || null,
         }
-      }),
-      prisma.consumable.update({
-        where: { id },
-        data: { quantity: { increment: change } }
-      })
-    ])
+      }))
+    }
+    ops.push(prisma.consumable.update({ where: { id }, data: { quantity: { increment: change } } }))
+
+    const results = await prisma.$transaction(ops)
+    const updated = results[results.length - 1]
+    const history = hasHistory ? results[0] : null
 
     return NextResponse.json({ consumable: updated, history })
   } catch (error) {

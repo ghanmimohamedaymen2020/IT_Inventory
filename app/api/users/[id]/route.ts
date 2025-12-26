@@ -146,7 +146,7 @@ export async function DELETE(
 
     // Option sécurisée : réaffecter les références (createdBy/installedBy/etc.)
     // si le paramètre `reassign=yes` est présent. On réaffecte vers l'utilisateur courant.
-    const reassign = req.nextUrl?.searchParams.get('reassign') === 'yes'
+    const  reassign = req.nextUrl?.searchParams.get('reassign') === 'yes'
 
     if (reassign) {
       // Effectuer plusieurs updates dans une transaction pour éviter les violations FK

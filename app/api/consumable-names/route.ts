@@ -18,11 +18,9 @@ async function getDevSession() {
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getDevSession()
-    if (!session) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
-
-    const rows = await prisma.consumable.findMany({ distinct: ['name'], select: { name: true }, orderBy: { name: 'asc' } })
-    const names = rows.map(r => r.name)
+    // consumable names are non-sensitive; allow public access to populate UI
+    const rows = await prisma.consumable.findMany({ distinct: ['typeId'], select: { type: { select: { name: true } } }, orderBy: { type: { name: 'asc' } } })
+    const names = rows.map(r => r.type?.name).filter(Boolean as any)
     return NextResponse.json(names)
   } catch (err) {
     console.error('GET /api/consumable-names error:', err)
