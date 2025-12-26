@@ -1,0 +1,5 @@
+Type,SerialNumber,InventoryCode,Brand,Model,CompanyCode,UserEmail,AcquisitionDate,AssetStatus
+machine,JHHGYUg,INV-001,HP,EliteBook,ACME,alice@example.com,2023-05-10,en_service
+screen,SCN12345,INV-002,Dell,U2721,ACME,alice@example.com,2022-11-01,stock
+machine,ABC98765,INV-003,Lenovo,ThinkPad,DEFAULT,bob@example.com,2021-08-20,out_of_service
+screen,MON45678,INV-004,Samsung,CF390,DEFAULT,,2020-03-15,stock

@@ -8,8 +8,21 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const { userId, service, date, dateStart, dateEnd, startDate, endDate, notes, sn, machineInfo, softwares } = body
-    const startVal = dateStart || startDate || date || ''
-    const endVal = dateEnd || endDate || ''
+
+    // Helper to find a date value in request body among many possible keys
+    const findDateInBody = (keys: string[]) => {
+      for (const k of keys) {
+        if (k in body && body[k]) return body[k]
+      }
+      return null
+    }
+
+    // Try many common field names for start / end
+    const startValRaw = findDateInBody(['dateStart', 'startDate', 'date_started', 'start', 'startedAt', 'debut', 'debutDate', 'date']) || findDateInBody(Object.keys(body).filter(k => /start|debut|begin/i.test(k))) || ''
+    const endValRaw = findDateInBody(['dateEnd', 'endDate', 'date_ended', 'end', 'endedAt', 'fin', 'finDate']) || findDateInBody(Object.keys(body).filter(k => /end|fin|finish/i.test(k))) || ''
+
+    const startVal = startValRaw || ''
+    const endVal = endValRaw || ''
 
     if (!userId) return NextResponse.json({ error: 'userId requis' }, { status: 400 })
 
@@ -105,7 +118,7 @@ export async function POST(req: NextRequest) {
     doc.setFont(fonts.title, 'bold')
     doc.setFontSize(20)
     doc.setTextColor(colors.primary)
-    const title = 'FICHE D\'INTERVENTION TECHNIQUE'
+    const title = "FICHE D'INTERVENTION TECHNIQUE"
     const titleWidth = doc.getTextWidth(title)
     doc.text(title, pageWidth - margin - titleWidth +3  / 2, 22)
     
@@ -190,14 +203,14 @@ export async function POST(req: NextRequest) {
         doc.setFont(fonts.body, 'normal')
         doc.setTextColor(colors.medium)
         
-        // Truncate long values
-        let displayValue = item.value
-        if (item.label === 'Email' && item.value.length > 25) {
-          displayValue = item.value.substring(0, 22) + '...'
-        }
-        
-        doc.text(displayValue, clientBoxX + 22, clientContentY)
-        clientContentY += 4.5
+        // Wrap long values so full email (and other long fields) are shown
+        const displayValue = String(item.value)
+        const wrapWidth = boxWidth - 30
+        const wrapped = doc.splitTextToSize(displayValue, wrapWidth)
+        wrapped.forEach((ln, i) => {
+          doc.text(ln, clientBoxX + 22, clientContentY)
+          clientContentY += 4.5
+        })
       }
     })
     
@@ -224,12 +237,11 @@ export async function POST(req: NextRequest) {
     doc.line(interventionBoxX + 5, interventionBoxY + 11, interventionBoxX + boxWidth - 5, interventionBoxY + 11)
     
     // Format date/time function
-    const formatDateTime = (dateStr: string) => {
-      if (!dateStr || dateStr.trim() === '') return 'Non spécifié'
+    const formatDateTime = (v: string | Date | null | undefined) => {
+      if (!v) return 'Non spécifié'
       try {
-        const date = new Date(dateStr)
+        const date = v instanceof Date ? v : new Date(String(v))
         if (isNaN(date.getTime())) return 'Date invalide'
-        
         return date.toLocaleDateString('fr-FR', {
           day: '2-digit',
           month: '2-digit',
@@ -243,33 +255,26 @@ export async function POST(req: NextRequest) {
     }
     
     // Calculate duration if both dates are present
-    const calculateDuration = (start: string, end: string) => {
-      if (!start || !end || start === 'Non spécifié' || end === 'Non spécifié') {
-        return 'Non calculable'
-      }
+    const calculateDuration = (startRaw: any, endRaw: any) => {
+      if (!startRaw || !endRaw) return 'Non calculable'
       try {
-        const startDate = new Date(start)
-        const endDate = new Date(end)
-        
-        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-          return 'Non calculable'
-        }
-        
-        const diffMs = Math.abs(endDate.getTime() - startDate.getTime())
+        const s = startRaw instanceof Date ? startRaw : new Date(String(startRaw))
+        const e = endRaw instanceof Date ? endRaw : new Date(String(endRaw))
+        if (isNaN(s.getTime()) || isNaN(e.getTime())) return 'Non calculable'
+        const diffMs = Math.abs(e.getTime() - s.getTime())
         const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
         const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
-        
-        if (diffHours > 0) {
-          return `${diffHours}h ${diffMinutes}min`
-        } else {
-          return `${diffMinutes}min`
-        }
+        if (diffHours > 0) return `${diffHours}h ${diffMinutes}min`
+        return `${diffMinutes}min`
       } catch {
         return 'Non calculable'
       }
     }
-    
-    const duration = calculateDuration(startVal, endVal)
+
+    // prepare parsed date values for formatting and duration
+    const parsedStart = startVal ? (startVal instanceof Date ? startVal : new Date(String(startVal))) : null
+    const parsedEnd = endVal ? (endVal instanceof Date ? endVal : new Date(String(endVal))) : null
+    const duration = calculateDuration(parsedStart, parsedEnd)
     
     // Intervention information
     const interventionData = [
@@ -288,11 +293,7 @@ export async function POST(req: NextRequest) {
         value: duration,
         color: colors.success
       },
-      { 
-        label: 'Statut', 
-        value: endVal ? 'TERMINÉ' : 'EN COURS',
-        color: endVal ? colors.success : colors.secondary
-      }
+      
     ]
     
     let interventionContentY = interventionBoxY + 18
@@ -334,7 +335,7 @@ export async function POST(req: NextRequest) {
       { label: 'S/N', value: sn || 'Non spécifié' },
       { label: 'Code inventaire', value: machineInfo?.inventoryCode || 'Non spécifié' },
       { label: 'Type', value: machineInfo?.type || 'Non spécifié' },
-      { label: 'Système d\'exploitation', value: machineInfo?.os || 'Non spécifié' }
+      { label: 'OS', value: machineInfo?.os || 'Non spécifié' }
     ]
     
     let eqY = y + 7
@@ -369,67 +370,105 @@ export async function POST(req: NextRequest) {
     const notesBoxMinHeight = 25;
     const notesBoxMaxHeight = pageHeight - y - 60; // Laisse de la place pour la suite/signatures
 
-    let noteLines: string[] = [];
-    if (notes && notes.trim() !== '') {
-      doc.setFont(fonts.body, 'normal');
-      doc.setFontSize(notesFontSize);
-      doc.setTextColor(colors.dark);
-      noteLines = doc.splitTextToSize(notes, contentWidth - 2 * notesBoxPadX);
+    // Split original notes by newline into paragraphs; each paragraph becomes one bullet
+    const paragraphs: string[] = [];
+    if (notes && String(notes).trim() !== '') {
+      String(notes).split(/\r?\n/).forEach((p) => {
+        const t = p.trim()
+        if (t !== '') paragraphs.push(t)
+      })
     }
 
-    let totalNoteHeight = (noteLines.length || 1) * notesLineHeight + 2 * notesBoxPadY;
-    if (totalNoteHeight < notesBoxMinHeight) totalNoteHeight = notesBoxMinHeight;
-    boxHeight = Math.min(totalNoteHeight, notesBoxMaxHeight);
+    // For each paragraph, compute wrapped lines respecting the content width
+    const units: string[][] = []
+    doc.setFont(fonts.body, 'normal')
+    doc.setFontSize(notesFontSize)
+    for (const p of paragraphs) {
+      const wrapped = doc.splitTextToSize(p, contentWidth - 2 * notesBoxPadX)
+      units.push(wrapped)
+    }
 
-    // Si le texte dépasse la page, on pagine
-    let remainingLines = noteLines.slice();
-    let firstBox = true;
-    while (remainingLines.length > 0 || firstBox) {
-      firstBox = false;
-      let linesThisPage = [];
-      if (remainingLines.length > 0) {
-        // Combien de lignes rentrent dans la boîte ?
-        let maxLines = Math.floor((notesBoxMaxHeight - 2 * notesBoxPadY) / notesLineHeight);
-        linesThisPage = remainingLines.slice(0, maxLines);
-        remainingLines = remainingLines.slice(maxLines);
-        boxHeight = Math.max(notesBoxMinHeight, linesThisPage.length * notesLineHeight + 2 * notesBoxPadY);
+    // Count total lines to estimate height
+    const totalLinesCount = units.reduce((s, u) => s + u.length, 0) || 1
+    let totalNoteHeight = totalLinesCount * notesLineHeight + 2 * notesBoxPadY
+    if (totalNoteHeight < notesBoxMinHeight) totalNoteHeight = notesBoxMinHeight
+    boxHeight = Math.min(totalNoteHeight, notesBoxMaxHeight)
+
+    // Prepare units copy for pagination
+    let remainingUnits = units.slice()
+    let firstBox = true
+    const bulletX = margin + notesBoxPadX
+    const textX = bulletX + 4
+
+    while (remainingUnits.length > 0 || firstBox) {
+      firstBox = false
+      // Determine how many lines fit in this box
+      const maxLines = Math.floor((notesBoxMaxHeight - 2 * notesBoxPadY) / notesLineHeight)
+      const linesThisPage: { text: string; isFirst: boolean }[] = []
+      let usedLines = 0
+
+      // Take full units while they fit
+      while (remainingUnits.length > 0 && usedLines + remainingUnits[0].length <= maxLines) {
+        const u = remainingUnits.shift()!
+        u.forEach((ln, idx) => linesThisPage.push({ text: ln, isFirst: idx === 0 }))
+        usedLines += u.length
+      }
+
+      // If there's space, take part of next unit
+      if (remainingUnits.length > 0 && usedLines < maxLines) {
+        const next = remainingUnits[0]
+        const take = Math.min(next.length, maxLines - usedLines)
+        for (let i = 0; i < take; i++) {
+          linesThisPage.push({ text: next[i], isFirst: i === 0 })
+        }
+        // remove taken lines from the next unit
+        remainingUnits[0] = next.slice(take)
+        if (remainingUnits[0].length === 0) remainingUnits.shift()
+      }
+
+      // If no notes at all and we haven't rendered anything, draw an empty box
+      if (linesThisPage.length === 0 && paragraphs.length === 0) {
+        boxHeight = notesBoxMinHeight
       } else {
-        // Pas de notes, juste la boîte vide
-        linesThisPage = [];
-        boxHeight = notesBoxMinHeight;
+        boxHeight = Math.max(notesBoxMinHeight, linesThisPage.length * notesLineHeight + 2 * notesBoxPadY)
       }
 
       // Dessiner la boîte
-      doc.setFillColor(colors.background);
-      doc.roundedRect(margin, y, contentWidth, boxHeight, 2, 2, 'F');
-      doc.setDrawColor(colors.border);
-      doc.roundedRect(margin, y, contentWidth, boxHeight, 2, 2, 'S');
+      doc.setFillColor(colors.background)
+      doc.roundedRect(margin, y, contentWidth, boxHeight, 2, 2, 'F')
+      doc.setDrawColor(colors.border)
+      doc.roundedRect(margin, y, contentWidth, boxHeight, 2, 2, 'S')
 
       if (linesThisPage.length > 0) {
-        doc.setFont(fonts.body, 'normal');
-        doc.setFontSize(notesFontSize);
-        doc.setTextColor(colors.dark);
-        let noteY = y + notesBoxPadY;
-        linesThisPage.forEach((line: string, index: number) => {
-          if (index === 0) {
-            doc.text('• ' + line, margin + notesBoxPadX, noteY);
+        doc.setFont(fonts.body, 'normal')
+        doc.setFontSize(notesFontSize)
+        doc.setTextColor(colors.dark)
+        let noteY = y + notesBoxPadY
+        linesThisPage.forEach((item) => {
+          if (item.isFirst) {
+            // draw bullet then text
+            doc.text('•', bulletX, noteY)
+            doc.text(item.text, textX, noteY)
           } else {
-            doc.text('  ' + line, margin + notesBoxPadX, noteY);
+            // continuation line: align with textX
+            doc.text(item.text, textX, noteY)
           }
-          noteY += notesLineHeight;
-        });
+          noteY += notesLineHeight
+        })
       } else {
-        doc.setFont(fonts.body, 'italic');
-        doc.setFontSize(notesFontSize);
-        doc.setTextColor(colors.medium);
-        doc.text('Aucune description de travaux fournie', margin + notesBoxPadX, y + notesBoxPadY);
+        doc.setFont(fonts.body, 'italic')
+        doc.setFontSize(notesFontSize)
+        doc.setTextColor(colors.medium)
+        doc.text('Aucune description de travaux fournie', margin + notesBoxPadX, y + notesBoxPadY)
       }
 
-      y += boxHeight + 5;
+      y += boxHeight + 5
       // Si encore du texte, nouvelle page
-      if (remainingLines.length > 0) {
-        doc.addPage();
-        y = margin;
+      if (remainingUnits.length > 0) {
+        doc.addPage()
+        y = margin
+      } else {
+        break
       }
     }
 
