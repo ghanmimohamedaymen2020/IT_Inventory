@@ -21,6 +21,7 @@ model Company {
   screens         Screen[]
   softwareCatalog SoftwareCatalog[]
   users           User[]
+  consumables     Consumable[]
 }
 
 model User {
