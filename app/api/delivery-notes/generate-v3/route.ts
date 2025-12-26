@@ -111,7 +111,7 @@ async function extractDominantColorsFromImage(imgPath: string, k = 3, sampleLimi
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { userId, equipments, notes } = body
+    const { userId, equipments, notes, consumables } = body
 
     if (!userId || !equipments || equipments.length === 0) {
       return NextResponse.json(
@@ -684,24 +684,75 @@ export async function POST(request: NextRequest) {
     }
 
     // Sauvegarder le bon de livraison dans la base de données
-    const deliveryNote = await prisma.deliveryNote.create({
-      data: {
-        noteNumber,
-        createdById: userId,
-        companyId: user.companyId,
-        deliveryDate: new Date(),
-        pdfPath: `/delivery-notes/${fileName}`,
-        notes: notes || '',
-        equipments: {
-          create: equipments.map((equipment: any) => ({
-            type: equipment.type,
-            serialNumber: equipment.serialNumber,
-            brand: equipment.brand || '',
-            model: equipment.model || '',
-            inventoryCode: equipment.inventoryCode || '',
-          }))
+    // Si des consommables sont fournis, décrémenter les stocks transactionnellement
+    const deliveryNote = await prisma.$transaction(async (tx) => {
+      // create the delivery note with equipments
+      const dn = await tx.deliveryNote.create({
+        data: {
+          noteNumber,
+          createdById: userId,
+          companyId: user.companyId,
+          deliveryDate: new Date(),
+          pdfPath: `/delivery-notes/${fileName}`,
+          notes: notes || '',
+          equipments: {
+            create: equipments.map((equipment: any) => ({
+              type: equipment.type,
+              serialNumber: equipment.serialNumber,
+              brand: equipment.brand || '',
+              model: equipment.model || '',
+              inventoryCode: equipment.inventoryCode || '',
+            }))
+          }
+        }
+      })
+
+      // process consumables allocations if any
+      if (Array.isArray(consumables) && consumables.length > 0) {
+        for (const c of consumables) {
+          // Expect either consumableId or (companyId+name) or typeName
+          const consumableId = c.consumableId || null
+          const qty = Number(c.quantity || 0)
+          if (!qty || qty <= 0) continue
+
+          let consumableRecord = null
+          if (consumableId) {
+            consumableRecord = await tx.consumable.findUnique({ where: { id: consumableId } })
+          } else if (c.typeId) {
+            consumableRecord = await tx.consumable.findUnique({ where: { id: c.typeId } })
+          } else if (c.typeName) {
+            // try find by company + type
+            consumableRecord = await tx.consumable.findFirst({ where: { companyId: user.companyId, type: { name: c.typeName } }, include: { type: true } })
+          }
+
+          // if found, validate stock and create history + update quantity
+          if (consumableRecord) {
+            if (consumableRecord.quantity < qty) {
+              throw new Error(`Stock insuffisant pour le consommable ${consumableRecord.id || consumableRecord.name}`)
+            }
+
+            // create history entry if model exists
+            try {
+              await tx.consumableHistory.create({
+                data: {
+                  consumableId: consumableRecord.id,
+                  change: -qty,
+                  reason: `Livré via BL ${noteNumber}`,
+                  userId: userId,
+                  deliveryNoteId: dn.id,
+                }
+              })
+            } catch (err) {
+              // if history table missing, ignore
+              console.warn('consumableHistory create failed', err)
+            }
+
+            await tx.consumable.update({ where: { id: consumableRecord.id }, data: { quantity: { decrement: qty } } })
+          }
         }
       }
+
+      return dn
     })
 
     return NextResponse.json({
