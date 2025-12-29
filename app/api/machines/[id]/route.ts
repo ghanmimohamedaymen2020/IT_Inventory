@@ -110,6 +110,11 @@ export async function DELETE(
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
     }
 
+    // Prevent company-level admins from deleting machines
+    if (session.user.role === 'company_admin') {
+      return NextResponse.json({ error: 'Accès refusé. Suppression réservée aux administrateurs.' }, { status: 403 })
+    }
+
     const { id } = await context.params
 
     // Vérifier que la machine existe

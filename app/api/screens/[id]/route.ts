@@ -1,7 +1,31 @@
 import { NextRequest, NextResponse } from "next/server"
 import { PrismaClient } from "@prisma/client"
+import { cookies } from "next/headers"
+import { jwtVerify } from "jose"
 
 const prisma = new PrismaClient()
+
+async function getDevSession() {
+  const cookieStore = await cookies()
+  const devSession = cookieStore.get('dev-session')
+  
+  if (!devSession) return null
+  
+  try {
+    const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || "secret")
+    const { payload } = await jwtVerify(devSession.value, secret)
+    return {
+      user: {
+        id: payload.sub as string,
+        email: payload.email as string,
+        role: payload.role as string,
+        companyId: payload.companyId as string,
+      }
+    }
+  } catch (error) {
+    return null
+  }
+}
 
 export async function GET(
   request: NextRequest,
@@ -80,6 +104,16 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const session = await getDevSession()
+    if (!session?.user) {
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
+    }
+
+    // Prevent company-level admins from deleting screens
+    if (session.user.role === 'company_admin') {
+      return NextResponse.json({ error: 'Accès refusé. Suppression réservée aux administrateurs.' }, { status: 403 })
+    }
+
     await prisma.screen.delete({
       where: { id: params.id },
     })
