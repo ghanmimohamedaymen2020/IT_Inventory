@@ -92,7 +92,10 @@ export default async function DashboardLayout({
     { name: "Interventions", href: "/dashboard/interventions", icon: "FileText" },
   ]
 
-  // Les liens d'administration ont été supprimés de la navigation.
+  // Ré-ajouter uniquement le lien "Paramètres" pour les super_admin
+  if (session.user.role === 'super_admin') {
+    navigation.push({ name: "Paramètres", href: "/dashboard/admin/settings", icon: "Settings" })
+  }
 
   return (
     <div className="min-h-screen bg-background">
