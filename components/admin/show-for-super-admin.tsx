@@ -11,7 +11,8 @@ export function ShowForSuperAdmin({ children }: PropsWithChildren) {
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (!mounted) return
-        setAllowed(!!data?.user && data.user.role === 'super_admin')
+        const user = data?.user ?? data?.session?.user
+        setAllowed(!!user && user.role === 'super_admin')
       })
       .catch(() => {
         if (!mounted) return
