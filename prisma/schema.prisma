@@ -54,6 +54,10 @@ model User {
   consumableHistories   ConsumableHistory[]
   receivedConsumableHistories ConsumableHistory[] @relation("ReceivedConsumableHistories")
 
+  // Relations for NextAuth
+  accounts Account[]
+  sessions Session[]
+
   @@index([companyId])
   @@index([email])
 }
