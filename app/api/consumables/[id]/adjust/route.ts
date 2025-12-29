@@ -55,15 +55,9 @@ export async function POST(
     const consumable = await prisma.consumable.findUnique({ where: { id } })
     if (!consumable) return NextResponse.json({ error: 'Consommable introuvable' }, { status: 404 })
 
-    // Ensure non-super_admin users belong to the same company
-    if (session.user.role !== 'super_admin' && session.user.companyId !== consumable.companyId) {
-      return NextResponse.json({ error: 'Accès refusé pour cette société' }, { status: 403 })
-    }
-
-    // Scoped 'admin' and 'company_admin' users are allowed only to increment stock (no negative changes)
-    if ((session.user.role === 'admin' || session.user.role === 'company_admin') && change < 0) {
-      return NextResponse.json({ error: 'Permissions insuffisantes pour décrémenter le stock' }, { status: 403 })
-    }
+    // Previously company_admin was restricted to their company and prevented from decrementing.
+    // Per request, company_admins are allowed to adjust consumables across companies and may decrement.
+    // No additional checks needed here; admin, company_admin and super_admin are all permitted by `requireAdminOrSuperAdmin`.
 
     // Transaction: create history (if model exists) and update quantity
     const ops: any[] = []
