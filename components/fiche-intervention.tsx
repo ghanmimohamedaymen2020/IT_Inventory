@@ -4,6 +4,9 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+import { Plus } from "lucide-react"
+import { ShowForSuperAdmin } from "@/components/admin/show-for-super-admin"
+import { toast } from "sonner"
 
 // PDF is generated server-side to ensure company logo is embedded correctly
 
@@ -227,6 +230,28 @@ export default function FicheIntervention() {
     }
   }, [])
 
+  const addSoftware = () => {
+    const name = prompt('Nom du logiciel à ajouter')
+    if (!name) return
+    const trimmed = name.trim()
+    if (!trimmed) return
+    try {
+      const existing = JSON.parse(localStorage.getItem('custom_softwares') || '[]')
+      if (existing.includes(trimmed)) {
+        toast.error('Logiciel existe déjà')
+        return
+      }
+      const next = Array.from(new Set([...existing, trimmed]))
+      localStorage.setItem('custom_softwares', JSON.stringify(next))
+      setSoftwares(prev => Array.from(new Set([...prev, trimmed])))
+      setSelectedSoft(prev => ({ ...prev, [trimmed]: false }))
+      toast.success('Logiciel ajouté')
+    } catch (e) {
+      console.error('Erreur ajout logiciel', e)
+      toast.error('Erreur ajout logiciel')
+    }
+  }
+
   const toggleSoftware = (name: string) => {
     setSelectedSoft(prev => ({ ...prev, [name]: !prev[name] }))
   }
@@ -324,7 +349,14 @@ export default function FicheIntervention() {
       </div>
 
       <div className="mb-3">
-        <h3 className="text-sm font-medium mb-2">Logiciels</h3>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-medium">Logiciels</h3>
+          <ShowForSuperAdmin>
+            <Button size="icon" onClick={addSoftware} aria-label="Ajouter logiciel">
+              <Plus className="h-4 w-4" />
+            </Button>
+          </ShowForSuperAdmin>
+        </div>
         {softwares.length === 0 ? (
           <div className="text-xs text-muted-foreground">Aucun logiciel configuré. Configurez-les dans Paramètres → Logiciels.</div>
         ) : (

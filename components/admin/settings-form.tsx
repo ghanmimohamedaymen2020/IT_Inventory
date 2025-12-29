@@ -9,191 +9,164 @@ import { Plus, Trash2, Upload, Image as ImageIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import Image from "next/image"
 
-const DEFAULT_COMPANIES = ["Green Tunisie", "Transglory Tunisie", "Seabridge Tunisie", "Globalcontainer", "Unimed Tunisie"]
-const DEFAULT_OFFICES = ["Rades", "Sfax", "Sousse", "Charguia"]
-const DEFAULT_SUBSCRIPTIONS = ["Microsoft 365 Business Basic", "Microsoft 365 Business Standard", "Microsoft 365 Business Premium", "Office 365 E3", "Office 365 E5"]
-const DEFAULT_DEPARTMENTS = ["Documentation", "IT", "Operations", "Sales", "Brokerage", "Finance"]
-const DEFAULT_GLOBAL_EMAILS = ["support@greentunisie.com", "sales@greentunisie.com", "accounting@greentunisie.com", "operations@greentunisie.com", "it@greentunisie.com"]
-const DEFAULT_MACHINE_TYPES = ["Laptop", "Desktop", "Server", "Tablet"]
-const DEFAULT_OS = ["Windows 11 Pro", "Windows 10 Pro", "Windows 11 Home", "Ubuntu 22.04", "Ubuntu 20.04", "macOS Ventura"]
-const DEFAULT_SOFTWARES = [
-  'MS Office 2016',
-  'MS Teams',
-  'Antivirus (Sentinel)',
-  'Cisco AnyConnect',
-  'TeamViewer',
-  'Zoom',
-  'Chrome',
-]
+const DEFAULTS = {
+  companies: ["Green Tunisie", "Transglory Tunisie", "Seabridge Tunisie", "Globalcontainer", "Unimed Tunisie"],
+  offices: ["Rades", "Sfax", "Sousse", "Charguia"],
+  subscriptions: ["Microsoft 365 Business Basic", "Microsoft 365 Business Standard", "Microsoft 365 Business Premium", "Office 365 E3", "Office 365 E5"],
+  departments: ["Documentation", "IT", "Operations", "Sales", "Brokerage", "Finance"],
+  emails: ["support@greentunisie.com", "sales@greentunisie.com", "accounting@greentunisie.com", "operations@greentunisie.com", "it@greentunisie.com"],
+  machineTypes: ["Laptop", "Desktop", "Server", "Tablet"],
+  os: ["Windows 11 Pro", "Windows 10 Pro", "Windows 11 Home", "Ubuntu 22.04", "Ubuntu 20.04", "macOS Ventura"],
+  softwares: ['MS Office 2016', 'MS Teams', 'Antivirus (Sentinel)', 'Cisco AnyConnect', 'TeamViewer', 'Zoom', 'Chrome']
+}
 
-interface CompanyWithLogo {
+interface Company {
   id: string
   name: string
   code: string
   logoPath: string | null
 }
 
+type ListType = 'offices' | 'subscriptions' | 'departments' | 'emails' | 'machineTypes' | 'softwares'
+
 export function SettingsForm() {
-  const [companies, setCompanies] = useState<CompanyWithLogo[]>([])
-  const [offices, setOffices] = useState<string[]>([])
-  const [subscriptions, setSubscriptions] = useState<string[]>([])
-  const [departments, setDepartments] = useState<string[]>([])
-  const [globalEmails, setGlobalEmails] = useState<string[]>([])
-  const [machineTypes, setMachineTypes] = useState<string[]>([])
+  // États
+  const [companies, setCompanies] = useState<Company[]>([])
   const [operatingSystems, setOperatingSystems] = useState<string[]>([])
-  const [softwareListState, setSoftwareListState] = useState<string[]>([])
   const [newOs, setNewOs] = useState("")
-  const [newSoftware, setNewSoftware] = useState("")
-  const [newCompany, setNewCompany] = useState("")
-  const [newCompanyCode, setNewCompanyCode] = useState("")
-  const [newOffice, setNewOffice] = useState("")
-  const [newSubscription, setNewSubscription] = useState("")
-  const [newDepartment, setNewDepartment] = useState("")
-  const [newGlobalEmail, setNewGlobalEmail] = useState("")
-  const [newMachineType, setNewMachineType] = useState("")
+  const [newCompany, setNewCompany] = useState({ name: "", code: "" })
   const [uploadingLogo, setUploadingLogo] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // États pour les listes simples
+  const [lists, setLists] = useState<Record<ListType, string[]>>({
+    offices: [],
+    subscriptions: [],
+    departments: [],
+    emails: [],
+    machineTypes: [],
+    softwares: []
+  })
+  const [newItems, setNewItems] = useState<Record<ListType, string>>({
+    offices: "",
+    subscriptions: "",
+    departments: "",
+    emails: "",
+    machineTypes: "",
+    softwares: ""
+  })
+
+  // Initialisation
   useEffect(() => {
-    // Charger les sociétés depuis l'API
     loadCompanies()
+    loadOS()
     
-    // Charger les autres listes depuis localStorage
-    const savedOffices = localStorage.getItem("custom_offices")
-    const savedSubscriptions = localStorage.getItem("custom_subscriptions")
-    const savedDepartments = localStorage.getItem("custom_departments")
-    const savedGlobalEmails = localStorage.getItem("custom_global_emails")
-    const savedMachineTypes = localStorage.getItem("custom_machine_types")
-    
-    setOffices(savedOffices ? JSON.parse(savedOffices) : DEFAULT_OFFICES)
-    setSubscriptions(savedSubscriptions ? JSON.parse(savedSubscriptions) : DEFAULT_SUBSCRIPTIONS)
-    setDepartments(savedDepartments ? JSON.parse(savedDepartments) : DEFAULT_DEPARTMENTS)
-    setGlobalEmails(savedGlobalEmails ? JSON.parse(savedGlobalEmails) : DEFAULT_GLOBAL_EMAILS)
-    setMachineTypes(savedMachineTypes ? JSON.parse(savedMachineTypes) : DEFAULT_MACHINE_TYPES);
-    const savedSoftwares = localStorage.getItem('custom_softwares')
-    setSoftwareListState(savedSoftwares ? JSON.parse(savedSoftwares) : DEFAULT_SOFTWARES);
-    // Load OS from API or defaults
-    ;(async () => {
-      try {
-        const res = await fetch('/api/os')
-        if (res.ok) {
-          const data = await res.json()
-          setOperatingSystems(data.map((o: any) => o.name))
-        } else {
-          setOperatingSystems(DEFAULT_OS)
-        }
-      } catch (err) {
-        setOperatingSystems(DEFAULT_OS)
-      }
-    })()
+    Object.keys(lists).forEach(key => {
+      const type = key as ListType
+      const saved = localStorage.getItem(`custom_${type}`)
+      setLists(prev => ({
+        ...prev,
+        [type]: saved ? JSON.parse(saved) : DEFAULTS[type] || []
+      }))
+    })
   }, [])
 
+  // Chargement données
   const loadCompanies = async () => {
     try {
-      const response = await fetch('/api/companies')
-      if (response.ok) {
-        const data = await response.json()
-        setCompanies(data)
-      }
+      const res = await fetch('/api/companies')
+      if (res.ok) setCompanies(await res.json())
     } catch (error) {
-      console.error('Erreur chargement sociétés:', error)
-      toast.error("Erreur lors du chargement des sociétés")
+      toast.error("Erreur chargement sociétés")
     } finally {
       setLoading(false)
     }
   }
 
-  const saveToStorage = (type: 'offices' | 'subscriptions' | 'departments' | 'globalEmails' | 'machineTypes', data: string[]) => {
-    if (type === 'subscriptions') {
-      localStorage.setItem('custom_subscriptions', JSON.stringify(data))
-    } else if (type === 'departments') {
-      localStorage.setItem('custom_departments', JSON.stringify(data))
-    } else if (type === 'globalEmails') {
-      localStorage.setItem('custom_global_emails', JSON.stringify(data))
-    } else if (type === 'machineTypes') {
-      localStorage.setItem('custom_machine_types', JSON.stringify(data))
-    } else {
-      localStorage.setItem('custom_offices', JSON.stringify(data))
-    }
-  }
-
-  const saveSoftwareList = (data: string[]) => {
-    setSoftwareListState(data)
-    localStorage.setItem('custom_softwares', JSON.stringify(data))
-  }
-
-  const addCompany = async () => {
-    if (!newCompany.trim()) {
-      toast.error("Veuillez entrer un nom de société")
-      return
-    }
-    if (companies.some(c => c.name === newCompany.trim())) {
-      toast.error("Cette société existe déjà")
-      return
-    }
-
-    // Generate a code if user didn't provide one. Keep it short and uppercase.
-    const slugify = (name: string) => {
-      const cleaned = name.replace(/[^a-zA-Z0-9 ]/g, '').trim()
-      if (!cleaned) return 'CMP'
-      const parts = cleaned.split(/\s+/)
-      if (parts.length === 1) return parts[0].substring(0, 4).toUpperCase()
-      return (parts[0].substring(0, 2) + parts[1].substring(0, 2)).substring(0,4).toUpperCase()
-    }
-
-    const code = newCompanyCode.trim() ? newCompanyCode.trim().toUpperCase() : slugify(newCompany)
-
-    if (companies.some(c => c.code && c.code === code)) {
-      toast.error("Ce code de société existe déjà")
-      return
-    }
-
+  const loadOS = async () => {
     try {
-      const response = await fetch('/api/companies', {
+      const res = await fetch('/api/os')
+      setOperatingSystems(res.ok ? (await res.json()).map((o: any) => o.name) : DEFAULTS.os)
+    } catch {
+      setOperatingSystems(DEFAULTS.os)
+    }
+  }
+
+  // Gestion liste générique
+  const updateList = (type: ListType, items: string[]) => {
+    setLists(prev => ({ ...prev, [type]: items }))
+    localStorage.setItem(`custom_${type}`, JSON.stringify(items))
+  }
+
+  const addToList = (type: ListType) => {
+    const value = newItems[type].trim()
+    if (!value) {
+      toast.error(`Veuillez entrer un ${getLabel(type)}`)
+      return
+    }
+
+    if (lists[type].includes(value)) {
+      toast.error(`${getLabel(type)} existe déjà`)
+      return
+    }
+
+    if (type === 'emails' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      toast.error("Format d'email invalide")
+      return
+    }
+
+    updateList(type, [...lists[type], value])
+    setNewItems(prev => ({ ...prev, [type]: "" }))
+    toast.success(`${getLabel(type)} ajouté`)
+  }
+
+  const removeFromList = (type: ListType, item: string) => {
+    updateList(type, lists[type].filter(i => i !== item))
+    toast.success(`${getLabel(type)} supprimé`)
+  }
+
+  // Sociétés
+  const addCompany = async () => {
+    if (!newCompany.name.trim()) {
+      toast.error("Nom société requis")
+      return
+    }
+
+    const code = newCompany.code.trim() || generateCode(newCompany.name)
+    
+    try {
+      const res = await fetch('/api/companies', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            name: newCompany.trim(),
-            code
-          })
+        body: JSON.stringify({ name: newCompany.name.trim(), code })
       })
 
-      if (response.ok) {
+      if (res.ok) {
         await loadCompanies()
-        setNewCompany("")
-        setNewCompanyCode("")
+        setNewCompany({ name: "", code: "" })
         toast.success("Société ajoutée")
       } else {
-        const data = await response.json()
-        toast.error(data.error || "Erreur lors de l'ajout")
+        toast.error((await res.json()).error || "Erreur ajout")
       }
-    } catch (error) {
-      console.error('Erreur:', error)
-      toast.error("Erreur lors de l'ajout de la société")
+    } catch {
+      toast.error("Erreur ajout société")
     }
   }
 
-  const removeCompany = async (companyId: string) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cette société ?')) return
-
+  const removeCompany = async (id: string) => {
+    if (!confirm('Supprimer cette société ?')) return
     try {
-      const response = await fetch(`/api/companies/${companyId}`, {
-        method: 'DELETE'
-      })
-
-      if (response.ok) {
+      const res = await fetch(`/api/companies/${id}`, { method: 'DELETE' })
+      if (res.ok) {
         await loadCompanies()
         toast.success("Société supprimée")
-      } else {
-        const data = await response.json()
-        toast.error(data.error || "Erreur lors de la suppression")
       }
-    } catch (error) {
-      console.error('Erreur:', error)
-      toast.error("Erreur lors de la suppression de la société")
+    } catch {
+      toast.error("Erreur suppression")
     }
   }
 
+  // Logos
   const handleLogoUpload = async (companyId: string, file: File) => {
     setUploadingLogo(companyId)
     try {
@@ -201,198 +174,39 @@ export function SettingsForm() {
       formData.append('logo', file)
       formData.append('companyId', companyId)
 
-      const response = await fetch(`/api/society-logos`, {
-        method: 'POST',
-        body: formData,
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
+      const res = await fetch('/api/society-logos', { method: 'POST', body: formData })
+      if (res.ok) {
         await loadCompanies()
-        toast.success("Logo uploadé avec succès")
-      } else {
-        toast.error(data.error || "Erreur lors de l'upload")
+        toast.success("Logo uploadé")
       }
-    } catch (error) {
-      console.error('Erreur upload:', error)
-      toast.error("Erreur lors de l'upload du logo")
+    } catch {
+      toast.error("Erreur upload")
     } finally {
       setUploadingLogo(null)
     }
   }
 
   const handleLogoDelete = async (companyId: string) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce logo ?')) return
-
+    if (!confirm('Supprimer ce logo ?')) return
     try {
-      const response = await fetch(`/api/companies/${companyId}`, {
+      const res = await fetch(`/api/companies/${companyId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ logoPath: null })
       })
-
-      if (response.ok) {
+      if (res.ok) {
         await loadCompanies()
         toast.success("Logo supprimé")
-      } else {
-        toast.error("Erreur lors de la suppression du logo")
       }
-    } catch (error) {
-      console.error('Erreur:', error)
-      toast.error("Erreur lors de la suppression du logo")
+    } catch {
+      toast.error("Erreur suppression logo")
     }
   }
 
-  const addOffice = () => {
-    if (!newOffice.trim()) {
-      toast.error("Veuillez entrer un nom de bureau")
-      return
-    }
-    
-    if (offices.includes(newOffice.trim())) {
-      toast.error("Ce bureau existe déjà")
-      return
-    }
-
-    const updated = [...offices, newOffice.trim()]
-    setOffices(updated)
-    saveToStorage('offices', updated)
-    setNewOffice("")
-    toast.success("Bureau ajouté")
-  }
-
-  const removeOffice = (office: string) => {
-    const updated = offices.filter(o => o !== office)
-    setOffices(updated)
-    saveToStorage('offices', updated)
-    toast.success("Bureau supprimé")
-  }
-
-  const addSubscription = () => {
-    if (!newSubscription.trim()) {
-      toast.error("Veuillez entrer un nom d'abonnement")
-      return
-    }
-    
-    if (subscriptions.includes(newSubscription.trim())) {
-      toast.error("Cet abonnement existe déjà")
-      return
-    }
-
-    const updated = [...subscriptions, newSubscription.trim()]
-    setSubscriptions(updated)
-    saveToStorage('subscriptions', updated)
-    setNewSubscription("")
-    toast.success("Abonnement ajouté")
-  }
-
-  const removeSubscription = (subscription: string) => {
-    const updated = subscriptions.filter(s => s !== subscription)
-    setSubscriptions(updated)
-    saveToStorage('subscriptions', updated)
-    toast.success("Abonnement supprimé")
-  }
-
-  const addDepartment = () => {
-    if (!newDepartment.trim()) {
-      toast.error("Veuillez entrer un nom de département")
-      return
-    }
-    
-    if (departments.includes(newDepartment.trim())) {
-      toast.error("Ce département existe déjà")
-      return
-    }
-
-    const updated = [...departments, newDepartment.trim()]
-    setDepartments(updated)
-    saveToStorage('departments', updated)
-    setNewDepartment("")
-    toast.success("Département ajouté")
-  }
-
-  const removeDepartment = (department: string) => {
-    const updated = departments.filter(d => d !== department)
-    setDepartments(updated)
-    saveToStorage('departments', updated)
-    toast.success("Département supprimé")
-  }
-
-  const addGlobalEmail = () => {
-    if (!newGlobalEmail.trim()) {
-      toast.error("Veuillez entrer un email global")
-      return
-    }
-    
-    // Validation basique de l'email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(newGlobalEmail.trim())) {
-      toast.error("Format d'email invalide")
-      return
-    }
-    
-    if (globalEmails.includes(newGlobalEmail.trim())) {
-      toast.error("Cet email existe déjà")
-      return
-    }
-
-    const updated = [...globalEmails, newGlobalEmail.trim()]
-    setGlobalEmails(updated)
-    saveToStorage('globalEmails', updated)
-    setNewGlobalEmail("")
-    toast.success("Émail global ajouté")
-  }
-
-  const removeGlobalEmail = (email: string) => {
-    const updated = globalEmails.filter(e => e !== email)
-    setGlobalEmails(updated)
-    saveToStorage('globalEmails', updated)
-    toast.success("Émail global supprimé")
-  }
-
-  const addMachineType = () => {
-    if (!newMachineType.trim()) {
-      toast.error("Veuillez entrer un type de machine")
-      return
-    }
-    
-    if (machineTypes.includes(newMachineType.trim())) {
-      toast.error("Ce type de machine existe déjà")
-      return
-    }
-
-    const updated = [...machineTypes, newMachineType.trim()]
-    setMachineTypes(updated)
-    saveToStorage('machineTypes', updated)
-    setNewMachineType("")
-    toast.success("Type de machine ajouté")
-  }
-
-  const addSoftware = () => {
-    if (!newSoftware.trim()) {
-      toast.error("Veuillez entrer un nom de logiciel")
-      return
-    }
-    if (softwareListState.includes(newSoftware.trim())) {
-      toast.error("Ce logiciel existe déjà")
-      return
-    }
-    const updated = [...softwareListState, newSoftware.trim()]
-    saveSoftwareList(updated)
-    setNewSoftware("")
-    toast.success("Logiciel ajouté")
-  }
-
-  const removeSoftware = (name: string) => {
-    const updated = softwareListState.filter(s => s !== name)
-    saveSoftwareList(updated)
-    toast.success("Logiciel supprimé")
-  }
-
+  // OS
   const addOs = async () => {
     if (!newOs.trim()) {
-      toast.error("Veuillez entrer un nom d'OS")
+      toast.error("OS requis")
       return
     }
 
@@ -404,70 +218,78 @@ export function SettingsForm() {
       })
 
       if (res.ok) {
-        const created = await res.json()
-        setOperatingSystems((prev) => [...prev, created.name])
+        setOperatingSystems(prev => [...prev, newOs.trim()])
         setNewOs("")
         toast.success('OS ajouté')
-      } else {
-        const data = await res.json()
-        toast.error(data.error || 'Erreur ajout OS')
       }
-    } catch (error) {
-      console.error('Erreur ajout OS:', error)
+    } catch {
       toast.error('Erreur ajout OS')
     }
   }
 
   const removeOs = async (name: string) => {
-    if (!confirm(`Êtes-vous sûr de vouloir supprimer ${name} ?`)) return
+    if (!confirm(`Supprimer ${name} ?`)) return
     try {
-      // Find OS id by name
-      const res = await fetch('/api/os')
-      if (!res.ok) {
-        toast.error('Erreur suppression OS')
-        return
-      }
-      const list = await res.json()
+      const listRes = await fetch('/api/os')
+      const list = await listRes.json()
       const os = list.find((o: any) => o.name === name)
-      if (!os) {
-        toast.error('OS introuvable')
-        return
-      }
-
-      const del = await fetch(`/api/os/${os.id}`, { method: 'DELETE' })
-      if (del.ok) {
-        setOperatingSystems((prev) => prev.filter(o => o !== name))
+      
+      if (os) {
+        await fetch(`/api/os/${os.id}`, { method: 'DELETE' })
+        setOperatingSystems(prev => prev.filter(o => o !== name))
         toast.success('OS supprimé')
-      } else {
-        const data = await del.json()
-        toast.error(data.error || 'Erreur suppression OS')
       }
-    } catch (error) {
-      console.error('Erreur suppression OS:', error)
+    } catch {
       toast.error('Erreur suppression OS')
     }
   }
 
-  const removeMachineType = (machineType: string) => {
-    const updated = machineTypes.filter(t => t !== machineType)
-    setMachineTypes(updated)
-    saveToStorage('machineTypes', updated)
-    toast.success("Type de machine supprimé")
+  // Reset
+  const resetToDefaults = () => {
+    Object.keys(DEFAULTS).forEach(key => {
+      const type = key as ListType
+      if (type in DEFAULTS) {
+        updateList(type, DEFAULTS[type] as string[])
+      }
+    })
+    toast.success("Listes réinitialisées")
   }
 
-  const resetToDefaults = () => {
-    setOffices(DEFAULT_OFFICES)
-    setSubscriptions(DEFAULT_SUBSCRIPTIONS)
-    setDepartments(DEFAULT_DEPARTMENTS)
-    setGlobalEmails(DEFAULT_GLOBAL_EMAILS)
-    setMachineTypes(DEFAULT_MACHINE_TYPES)
-    saveToStorage('offices', DEFAULT_OFFICES)
-    saveToStorage('subscriptions', DEFAULT_SUBSCRIPTIONS)
-    saveToStorage('departments', DEFAULT_DEPARTMENTS)
-    saveToStorage('globalEmails', DEFAULT_GLOBAL_EMAILS)
-    saveToStorage('machineTypes', DEFAULT_MACHINE_TYPES)
-    toast.success("Listes réinitialisées aux valeurs par défaut (sauf sociétés)")
-  }
+  // Composants réutilisables
+  const EditableList = ({ type, label }: { type: ListType, label: string }) => (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <Label className="text-lg font-semibold">{label}</Label>
+        <Badge variant="secondary">{lists[type].length}</Badge>
+      </div>
+
+      <div className="flex gap-2">
+        <Input
+          value={newItems[type]}
+          onChange={e => setNewItems(prev => ({ ...prev, [type]: e.target.value }))}
+          placeholder={`Nouveau ${label.toLowerCase()}...`}
+          onKeyPress={e => e.key === 'Enter' && addToList(type)}
+        />
+        <Button onClick={() => addToList(type)} size="icon">
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {lists[type].map(item => (
+          <Badge key={item} variant="outline" className="px-3 py-1.5 text-sm">
+            {item}
+            <button
+              onClick={() => removeFromList(type, item)}
+              className="ml-2 hover:text-destructive"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </Badge>
+        ))}
+      </div>
+    </div>
+  )
 
   return (
     <div className="space-y-8">
@@ -480,18 +302,18 @@ export function SettingsForm() {
 
         <div className="grid gap-2 md:grid-cols-2">
           <Input
-            value={newCompany}
-            onChange={(e) => setNewCompany(e.target.value)}
+            value={newCompany.name}
+            onChange={e => setNewCompany(prev => ({ ...prev, name: e.target.value }))}
             placeholder="Nom de la société..."
-            onKeyPress={(e) => e.key === 'Enter' && addCompany()}
+            onKeyPress={e => e.key === 'Enter' && addCompany()}
           />
           <div className="flex gap-2">
             <Input
-              value={newCompanyCode}
-              onChange={(e) => setNewCompanyCode(e.target.value.toUpperCase())}
+              value={newCompany.code}
+              onChange={e => setNewCompany(prev => ({ ...prev, code: e.target.value.toUpperCase() }))}
               placeholder="Code (ex: GREEN)"
               maxLength={10}
-              onKeyPress={(e) => e.key === 'Enter' && addCompany()}
+              onKeyPress={e => e.key === 'Enter' && addCompany()}
             />
             <Button onClick={addCompany} size="icon">
               <Plus className="h-4 w-4" />
@@ -503,345 +325,26 @@ export function SettingsForm() {
           <p className="text-center text-muted-foreground">Chargement...</p>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {companies.map((company) => (
-              <div key={company.id} className="border rounded-lg p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="font-medium">{company.name}</span>
-                    <Badge variant="outline" className="ml-2 text-xs">{company.code}</Badge>
-                  </div>
-                  <button
-                    onClick={() => removeCompany(company.id)}
-                    className="text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-                
-                {company.logoPath ? (
-                  <div className="space-y-2">
-                    <div className="relative w-full h-24 bg-muted rounded flex items-center justify-center overflow-hidden border">
-                      <Image
-                        src={company.logoPath}
-                        alt={`Logo ${company.name}`}
-                        width={150}
-                        height={96}
-                        className="object-contain"
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <Label htmlFor={`logo-${company.id}`} className="flex-1">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="w-full"
-                          disabled={uploadingLogo === company.id}
-                          onClick={() => document.getElementById(`logo-${company.id}`)?.click()}
-                        >
-                          <Upload className="h-3 w-3 mr-2" />
-                          {uploadingLogo === company.id ? 'Upload...' : 'Modifier'}
-                        </Button>
-                      </Label>
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleLogoDelete(company.id)}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                    <Input
-                      id={`logo-${company.id}`}
-                      type="file"
-                      accept="image/png,image/jpeg,image/jpg,image/webp"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0]
-                        if (file) handleLogoUpload(company.id, file)
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="w-full h-24 bg-muted rounded flex items-center justify-center border border-dashed">
-                      <div className="text-center">
-                        <ImageIcon className="h-6 w-6 text-muted-foreground mx-auto mb-1" />
-                        <p className="text-xs text-muted-foreground">Aucun logo</p>
-                      </div>
-                    </div>
-                    <Label htmlFor={`logo-${company.id}`} className="w-full">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                        disabled={uploadingLogo === company.id}
-                        onClick={() => document.getElementById(`logo-${company.id}`)?.click()}
-                      >
-                        <Upload className="h-3 w-3 mr-2" />
-                        {uploadingLogo === company.id ? 'Upload...' : 'Ajouter logo'}
-                      </Button>
-                    </Label>
-                    <Input
-                      id={`logo-${company.id}`}
-                      type="file"
-                      accept="image/png,image/jpeg,image/jpg,image/webp"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0]
-                        if (file) handleLogoUpload(company.id, file)
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
+            {companies.map(company => (
+              <CompanyCard
+                key={company.id}
+                company={company}
+                uploadingLogo={uploadingLogo}
+                onLogoUpload={handleLogoUpload}
+                onLogoDelete={handleLogoDelete}
+                onRemove={() => removeCompany(company.id)}
+              />
             ))}
           </div>
         )}
       </div>
 
-      {/* Bureaux */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <Label className="text-lg font-semibold">Bureaux</Label>
-          <Badge variant="secondary">{offices.length} bureau(x)</Badge>
-        </div>
+      {/* Listes éditable */}
+      {/* Les listes Bureaux et Départements ont été déplacées hors de la page Paramètres. */}
 
-        <div className="flex gap-2">
-          <Input
-            value={newOffice}
-            onChange={(e) => setNewOffice(e.target.value)}
-            placeholder="Nouveau bureau..."
-            onKeyPress={(e) => e.key === 'Enter' && addOffice()}
-          />
-          <Button onClick={addOffice} size="icon">
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
+      {/* OS and other lists moved to the relevant pages. */}
 
-        <div className="flex flex-wrap gap-2">
-          {offices.map((office) => (
-            <Badge key={office} variant="outline" className="px-3 py-1.5 text-sm">
-              {office}
-              <button
-                onClick={() => removeOffice(office)}
-                className="ml-2 hover:text-destructive"
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
-        </div>
-      </div>
-
-      {/* Abonnements Office 365 */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <Label className="text-lg font-semibold">Abonnements Office 365</Label>
-          <Badge variant="secondary">{subscriptions.length} abonnement(s)</Badge>
-        </div>
-
-        <div className="flex gap-2">
-          <Input
-            value={newSubscription}
-            onChange={(e) => setNewSubscription(e.target.value)}
-            placeholder="Nouvel abonnement..."
-            onKeyPress={(e) => e.key === 'Enter' && addSubscription()}
-          />
-          <Button onClick={addSubscription} size="icon">
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {subscriptions.map((subscription) => (
-            <Badge key={subscription} variant="outline" className="px-3 py-1.5 text-sm">
-              {subscription}
-              <button
-                onClick={() => removeSubscription(subscription)}
-                className="ml-2 hover:text-destructive"
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
-        </div>
-      </div>
-
-      {/* Départements */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <Label className="text-lg font-semibold">Départements</Label>
-          <Badge variant="secondary">{departments.length} département(s)</Badge>
-        </div>
-
-        <div className="flex gap-2">
-          <Input
-            value={newDepartment}
-            onChange={(e) => setNewDepartment(e.target.value)}
-            placeholder="Nouveau département..."
-            onKeyPress={(e) => e.key === 'Enter' && addDepartment()}
-          />
-          <Button onClick={addDepartment} size="icon">
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {departments.map((department) => (
-            <Badge key={department} variant="outline" className="px-3 py-1.5 text-sm">
-              {department}
-              <button
-                onClick={() => removeDepartment(department)}
-                className="ml-2 hover:text-destructive"
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
-        </div>
-      </div>
-
-      {/* Emails Globaux */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <Label className="text-lg font-semibold">Emails Globaux</Label>
-          <Badge variant="secondary">{globalEmails.length} email(s)</Badge>
-        </div>
-
-        <div className="flex gap-2">
-          <Input
-            type="email"
-            value={newGlobalEmail}
-            onChange={(e) => setNewGlobalEmail(e.target.value)}
-            placeholder="nouvel-email@exemple.com"
-            onKeyPress={(e) => e.key === 'Enter' && addGlobalEmail()}
-          />
-          <Button onClick={addGlobalEmail} size="icon">
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {globalEmails.map((email) => (
-            <Badge key={email} variant="outline" className="px-3 py-1.5 text-sm">
-              {email}
-              <button
-                onClick={() => removeGlobalEmail(email)}
-                className="ml-2 hover:text-destructive"
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
-        </div>
-      </div>
-
-      {/* Types de Machines */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <Label className="text-lg font-semibold">Types de Machines</Label>
-          <Badge variant="secondary">{machineTypes.length} type(s)</Badge>
-        </div>
-
-        <div className="flex gap-2">
-          <Input
-            value={newMachineType}
-            onChange={(e) => setNewMachineType(e.target.value)}
-            placeholder="Nouveau type de machine..."
-            onKeyPress={(e) => e.key === 'Enter' && addMachineType()}
-          />
-          <Button onClick={addMachineType} size="icon">
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {machineTypes.map((machineType) => (
-            <Badge key={machineType} variant="outline" className="px-3 py-1.5 text-sm">
-              {machineType}
-              <button
-                onClick={() => removeMachineType(machineType)}
-                className="ml-2 hover:text-destructive"
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
-        </div>
-      </div>
-
-        {/* Systèmes d'exploitation (OS) */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Label className="text-lg font-semibold">Systèmes d'exploitation</Label>
-            <Badge variant="secondary">{operatingSystems.length} OS</Badge>
-          </div>
-
-          <div className="flex gap-2">
-            <Input
-              value={newOs}
-              onChange={(e) => setNewOs(e.target.value)}
-              placeholder="Nouveau OS..."
-              onKeyPress={(e) => e.key === 'Enter' && addOs()}
-            />
-            <Button onClick={addOs} size="icon">
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {operatingSystems.map((os) => (
-              <Badge key={os} variant="outline" className="px-3 py-1.5 text-sm">
-                {os}
-                <button
-                  onClick={() => removeOs(os)}
-                  className="ml-2 hover:text-destructive"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </Badge>
-            ))}
-          </div>
-        </div>
-
-        {/* Logiciels */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Label className="text-lg font-semibold">Logiciels (Fiche d'intervention)</Label>
-            <Badge variant="secondary">{softwareListState.length} logiciel(s)</Badge>
-          </div>
-
-          <div className="flex gap-2">
-            <Input
-              value={newSoftware}
-              onChange={(e) => setNewSoftware(e.target.value)}
-              placeholder="Nouveau logiciel..."
-              onKeyPress={(e) => e.key === 'Enter' && addSoftware()}
-            />
-            <Button onClick={addSoftware} size="icon">
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {softwareListState.map((s) => (
-              <Badge key={s} variant="outline" className="px-3 py-1.5 text-sm">
-                {s}
-                <button
-                  onClick={() => removeSoftware(s)}
-                  className="ml-2 hover:text-destructive"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </Badge>
-            ))}
-          </div>
-        </div>
-
-      {/* Reset Button */}
+      {/* Reset */}
       <div className="flex justify-end pt-4 border-t">
         <Button variant="outline" onClick={resetToDefaults}>
           Réinitialiser aux valeurs par défaut
@@ -849,4 +352,107 @@ export function SettingsForm() {
       </div>
     </div>
   )
+}
+
+// Composants enfants
+function CompanyCard({ 
+  company, 
+  uploadingLogo, 
+  onLogoUpload, 
+  onLogoDelete, 
+  onRemove 
+}: { 
+  company: Company
+  uploadingLogo: string | null
+  onLogoUpload: (id: string, file: File) => void
+  onLogoDelete: (id: string) => void
+  onRemove: () => void
+}) {
+  const fileInputId = `logo-${company.id}`
+
+  return (
+    <div className="border rounded-lg p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="font-medium">{company.name}</span>
+          <Badge variant="outline" className="ml-2 text-xs">{company.code}</Badge>
+        </div>
+        <button onClick={onRemove} className="text-muted-foreground hover:text-destructive">
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        <div className="relative w-full h-24 bg-muted rounded flex items-center justify-center overflow-hidden border">
+          {company.logoPath ? (
+            <Image
+              src={company.logoPath}
+              alt={`Logo ${company.name}`}
+              width={150}
+              height={96}
+              className="object-contain"
+            />
+          ) : (
+            <div className="text-center">
+              <ImageIcon className="h-6 w-6 text-muted-foreground mx-auto mb-1" />
+              <p className="text-xs text-muted-foreground">Aucun logo</p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          <Label htmlFor={fileInputId} className="flex-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full"
+              disabled={uploadingLogo === company.id}
+            >
+              <Upload className="h-3 w-3 mr-2" />
+              {uploadingLogo === company.id ? 'Upload...' : company.logoPath ? 'Modifier' : 'Ajouter logo'}
+            </Button>
+          </Label>
+          
+          {company.logoPath && (
+            <Button type="button" variant="destructive" size="sm" onClick={() => onLogoDelete(company.id)}>
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+
+        <Input
+          id={fileInputId}
+          type="file"
+          accept="image/png,image/jpeg,image/jpg,image/webp"
+          className="hidden"
+          onChange={e => {
+            const file = e.target.files?.[0]
+            if (file) onLogoUpload(company.id, file)
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
+// Utilitaires
+function generateCode(name: string): string {
+  const cleaned = name.replace(/[^a-zA-Z0-9 ]/g, '').trim()
+  if (!cleaned) return 'CMP'
+  const parts = cleaned.split(/\s+/)
+  if (parts.length === 1) return parts[0].substring(0, 4).toUpperCase()
+  return (parts[0].substring(0, 2) + parts[1].substring(0, 2)).toUpperCase()
+}
+
+function getLabel(type: ListType): string {
+  const labels: Record<ListType, string> = {
+    offices: 'bureau',
+    subscriptions: 'abonnement',
+    departments: 'département',
+    emails: 'email',
+    machineTypes: 'type de machine',
+    softwares: 'logiciel'
+  }
+  return labels[type]
 }

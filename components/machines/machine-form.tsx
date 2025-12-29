@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
+import { Plus } from "lucide-react"
+import { ShowForSuperAdmin } from "@/components/admin/show-for-super-admin"
 import {
   Select,
   SelectContent,
@@ -133,9 +135,47 @@ export function MachineForm() {
     // Charger OS dynamiquement
     fetch('/api/os')
       .then(res => res.json())
-      .then(data => setOsOptions((data || []).map((o: any) => o.name)))
+      .then(data => {
+        const fetched = (data || []).map((o: any) => o.name)
+        const saved: string[] = (() => {
+          try { return JSON.parse(localStorage.getItem('custom_os') || '[]') } catch { return [] }
+        })()
+        setOsOptions(Array.from(new Set([...fetched, ...saved])))
+      })
       .catch(err => console.error('Erreur chargement OS:', err))
   }, [])
+
+  const addMachineType = () => {
+    const name = prompt('Nom du nouveau type de machine')
+    if (!name) return
+    const trimmed = name.trim()
+    if (!trimmed) return
+    if (machineTypes.includes(trimmed)) {
+      toast.error('Type existe déjà')
+      return
+    }
+    const custom = JSON.parse(localStorage.getItem('custom_machine_types') || '[]')
+    const next = Array.from(new Set([...custom, trimmed]))
+    localStorage.setItem('custom_machine_types', JSON.stringify(next))
+    setMachineTypes(prev => Array.from(new Set([...prev, trimmed])))
+    toast.success('Type ajouté')
+  }
+
+  const addOs = () => {
+    const name = prompt('Nom du nouvel OS')
+    if (!name) return
+    const trimmed = name.trim()
+    if (!trimmed) return
+    if (osOptions.includes(trimmed)) {
+      toast.error('OS existe déjà')
+      return
+    }
+    const saved = JSON.parse(localStorage.getItem('custom_os') || '[]')
+    const next = Array.from(new Set([...saved, trimmed]))
+    localStorage.setItem('custom_os', JSON.stringify(next))
+    setOsOptions(prev => Array.from(new Set([...prev, trimmed])))
+    toast.success('OS ajouté')
+  }
 
   const {
     register,
@@ -194,7 +234,14 @@ export function MachineForm() {
         <h3 className="text-lg font-semibold">Informations générales</h3>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="type">Type *</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="type">Type *</Label>
+              <ShowForSuperAdmin>
+                <Button size="icon" onClick={addMachineType} aria-label="Ajouter type">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </ShowForSuperAdmin>
+            </div>
             <Select
               onValueChange={(value) => {
                 setValue("type", value as any)
@@ -301,8 +348,17 @@ export function MachineForm() {
         {selectedType && MACHINE_SPECS[selectedType as keyof typeof MACHINE_SPECS] ? (
           <div className="grid gap-4 md:grid-cols-2">
             {MACHINE_SPECS[selectedType as keyof typeof MACHINE_SPECS].fields.map((field) => (
-              <div key={field.name} className="space-y-2">
-                <Label htmlFor={field.name}>{field.label}</Label>
+                <div key={field.name} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor={field.name}>{field.label}</Label>
+                  {field.name === 'windowsVersion' && (
+                    <ShowForSuperAdmin>
+                      <Button size="icon" onClick={addOs} aria-label="Ajouter OS">
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </ShowForSuperAdmin>
+                  )}
+                </div>
                 {'options' in field && field.type === 'select' ? (
                   <Select
                     onValueChange={(value) => {
