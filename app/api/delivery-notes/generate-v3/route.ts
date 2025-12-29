@@ -43,6 +43,7 @@ async function extractDominantColorsFromImage(imgPath: string, k = 3, sampleLimi
     }
 
     const maxIter = 8
+
     for (let iter = 0; iter < maxIter; iter++) {
       const sums = Array(centers.length).fill(0).map(() => [0, 0, 0])
       const counts = Array(centers.length).fill(0)
@@ -78,6 +79,7 @@ async function extractDominantColorsFromImage(imgPath: string, k = 3, sampleLimi
           moved = true
         }
       }
+
       if (!moved) break
     }
 
@@ -767,10 +769,23 @@ export async function POST(request: NextRequest) {
             consumableRecord = await tx.consumable.findFirst({ where: { companyId: user.companyId, type: { name: c.name } }, include: { type: true } })
           }
 
+          // If not found, reject: don't allow generating BL with unknown/off-company consumables
+          if (!consumableRecord) {
+            const label = c.typeName || c.name || c.sku || c.consumableId || 'consommable inconnu'
+            throw new Error(`Consommable non trouvé pour la société ${user.company?.name || user.companyId}: ${label}`)
+          }
+
+          // Ensure the found consumable belongs to the same company
+          if (consumableRecord.companyId && consumableRecord.companyId !== user.companyId) {
+            const label = consumableRecord.type?.name ?? consumableRecord.name ?? consumableRecord.id
+            throw new Error(`Le consommable ${label} n'appartient pas à la société sélectionnée.`)
+          }
+
           // if found, validate stock and create history + update quantity
           if (consumableRecord) {
             if (consumableRecord.quantity < qty) {
-                throw new Error(`Stock insuffisant pour le consommable ${consumableRecord.type?.name ?? consumableRecord.name || consumableRecord.id} (id=${consumableRecord.id}) — disponible ${consumableRecord.quantity}, demandé ${qty}`)
+              const readableName = (consumableRecord.type?.name ?? consumableRecord.name) || 'consommable'
+              throw new Error(`Stock insuffisant pour le consommable ${readableName} — disponible ${consumableRecord.quantity}, demandé ${qty}`)
             }
 
             // create a DeliveryItem row so the consumable appears on the BL and in DB
@@ -795,6 +810,7 @@ export async function POST(request: NextRequest) {
                   change: -qty,
                   reason: `Livré via BL ${noteNumber}`,
                   userId: userId,
+                  recipientId: userId,
                   deliveryNoteId: dn.id,
                 }
               })

@@ -46,13 +46,23 @@ export async function POST(
       return NextResponse.json({ error: 'Le changement doit être un entier' }, { status: 400 })
     }
 
+    // Require a non-empty reason for traceability
+    if (!reason || typeof reason !== 'string' || !reason.trim()) {
+      return NextResponse.json({ error: 'La raison est obligatoire pour la traçabilité' }, { status: 400 })
+    }
+
     // Load consumable
     const consumable = await prisma.consumable.findUnique({ where: { id } })
     if (!consumable) return NextResponse.json({ error: 'Consommable introuvable' }, { status: 404 })
 
-    // Ensure admin belongs to the same company unless super_admin
+    // Ensure non-super_admin users belong to the same company
     if (session.user.role !== 'super_admin' && session.user.companyId !== consumable.companyId) {
       return NextResponse.json({ error: 'Accès refusé pour cette société' }, { status: 403 })
+    }
+
+    // Scoped 'admin' and 'company_admin' users are allowed only to increment stock (no negative changes)
+    if ((session.user.role === 'admin' || session.user.role === 'company_admin') && change < 0) {
+      return NextResponse.json({ error: 'Permissions insuffisantes pour décrémenter le stock' }, { status: 403 })
     }
 
     // Transaction: create history (if model exists) and update quantity

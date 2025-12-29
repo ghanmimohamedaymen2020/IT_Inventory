@@ -49,6 +49,8 @@ model User {
   softwareInstallations SoftwareInstallation[]
   company               Company                @relation(fields: [companyId], references: [id])
   userEmails            UserEmail[]
+  consumableHistories   ConsumableHistory[]
+  receivedConsumableHistories ConsumableHistory[] @relation("ReceivedConsumableHistories")
 
   @@index([companyId])
   @@index([email])
@@ -128,23 +130,23 @@ model Screen {
 }
 
 model DeliveryNote {
-  id               String                   @id @default(cuid())
-  noteNumber       String                   @unique
+  id               String                  @id @default(cuid())
+  noteNumber       String                  @unique
   vendor           String?
   deliveryDate     DateTime
   purchaseOrderRef String?
-  status           String                   @default("pending")
+  status           String                  @default("pending")
   receivedBy       String?
   notes            String?
   pdfPath          String?
   companyId        String
   createdById      String
-  createdAt        DateTime                 @default(now())
-  updatedAt        DateTime                 @updatedAt
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
   deliveryItems    DeliveryItem[]
   equipments       DeliveryNoteEquipment[]
-  company          Company                  @relation(fields: [companyId], references: [id])
-  createdBy        User                     @relation(fields: [createdById], references: [id])
+  company          Company                 @relation(fields: [companyId], references: [id])
+  createdBy        User                    @relation(fields: [createdById], references: [id])
   machines         Machine[]
 
   @@index([companyId])
@@ -275,38 +277,38 @@ model DeliveryNoteSequence {
 }
 
 model ReturnNote {
-  id             String              @id @default(cuid())
-  noteNumber     String              @unique
-  returnDate     DateTime
-  returnedBy     String
-  reason         String?
-  destination    String              @default("stock") // "stock" ou "reparation" ou "rebut"
-  notes          String?
-  pdfPath        String?
-  companyId      String
-  createdById    String
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-  equipments     ReturnNoteEquipment[]
-  company        Company             @relation(fields: [companyId], references: [id])
-  createdBy      User                @relation("ReturnNotesCreated", fields: [createdById], references: [id])
+  id          String                @id @default(cuid())
+  noteNumber  String                @unique
+  returnDate  DateTime
+  returnedBy  String
+  reason      String?
+  destination String                @default("stock") // "stock" ou "reparation" ou "rebut"
+  notes       String?
+  pdfPath     String?
+  companyId   String
+  createdById String
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  equipments  ReturnNoteEquipment[]
+  company     Company               @relation(fields: [companyId], references: [id])
+  createdBy   User                  @relation("ReturnNotesCreated", fields: [createdById], references: [id])
 
   @@index([companyId])
   @@index([noteNumber])
 }
 
 model ReturnNoteEquipment {
-  id             String     @id @default(cuid())
-  returnNoteId   String
-  type           String     // "machine" | "screen" | "peripheral"
-  serialNumber   String
-  brand          String?
-  model          String?
-  inventoryCode  String?
-  previousUser   String?    // Nom de l'utilisateur qui retourne l'équipement
-  condition      String?    // "bon" | "moyen" | "mauvais"
-  createdAt      DateTime   @default(now())
-  returnNote     ReturnNote @relation(fields: [returnNoteId], references: [id], onDelete: Cascade)
+  id            String     @id @default(cuid())
+  returnNoteId  String
+  type          String // "machine" | "screen" | "peripheral"
+  serialNumber  String
+  brand         String?
+  model         String?
+  inventoryCode String?
+  previousUser  String? // Nom de l'utilisateur qui retourne l'équipement
+  condition     String? // "bon" | "moyen" | "mauvais"
+  createdAt     DateTime   @default(now())
+  returnNote    ReturnNote @relation(fields: [returnNoteId], references: [id], onDelete: Cascade)
 
   @@index([returnNoteId])
   @@index([serialNumber])
@@ -331,11 +333,11 @@ model OperatingSystem {
 }
 
 model ConsumableType {
-  id        String       @id @default(cuid())
+  id        String   @id @default(cuid())
   name      String
-  code      String?      @unique
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  code      String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   consumables Consumable[]
 
@@ -343,19 +345,40 @@ model ConsumableType {
 }
 
 model Consumable {
-  id           String    @id @default(cuid())
+  id           String   @id @default(cuid())
   typeId       String
   companyId    String
-  quantity     Int       @default(0)
-  minimumStock Int?      // optional threshold
+  quantity     Int      @default(0)
+  minimumStock Int? // optional threshold
   note         String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  type    ConsumableType @relation(fields: [typeId], references: [id])
-  company Company        @relation(fields: [companyId], references: [id])
+  type      ConsumableType      @relation(fields: [typeId], references: [id])
+  company   Company             @relation(fields: [companyId], references: [id])
+  histories ConsumableHistory[]
 
+  @@unique([companyId, typeId])
   @@index([companyId])
   @@index([typeId])
-  @@unique([companyId, typeId])
+}
+
+model ConsumableHistory {
+  id             String   @id @default(cuid())
+  consumableId   String
+  change         Int
+  reason         String
+  userId         String
+  recipientId    String?
+  deliveryNoteId String?
+  returnNoteId   String?
+  createdAt      DateTime @default(now())
+
+  consumable Consumable @relation(fields: [consumableId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id])
+  recipient  User?      @relation("ReceivedConsumableHistories", fields: [recipientId], references: [id])
+
+  @@index([consumableId])
+  @@index([userId])
+  @@index([recipientId])
 }

@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { jwtVerify } from 'jose'
 import { prisma } from '@/lib/db'
 import { requireAdminOrSuperAdmin } from '@/lib/permissions'
+import { auth } from '@/lib/auth'
 
 async function getDevSession() {
   const cookieStore = await cookies()
@@ -26,15 +27,31 @@ async function getDevSession() {
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getDevSession()
-    if (!session) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+    let session = await getDevSession()
+    if (!session) {
+      // Fallback to NextAuth session for regular auth flows
+      const sa = await auth()
+      if (!sa || !sa.user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+      session = { user: { id: sa.user.id as string, email: sa.user.email as string, role: sa.user.role as string, companyId: sa.user.companyId as string } }
+    }
 
     const url = new URL(request.url)
     const qCompanyId = url.searchParams.get('companyId')
-    const companyId = session.user.role === 'super_admin' && qCompanyId ? qCompanyId : session.user.companyId
+
+    // Build a safe where clause. Only include companyId if defined.
+    const where: any = {}
+    // Allow super_admin, admin and company_admin to list across companies; others are scoped to their company
+    if (session.user.role === 'super_admin' || session.user.role === 'admin' || session.user.role === 'company_admin') {
+      if (qCompanyId) where.companyId = qCompanyId
+    } else {
+      if (!session.user.companyId) {
+        return NextResponse.json({ error: 'Utilisateur sans société assignée' }, { status: 403 })
+      }
+      where.companyId = session.user.companyId
+    }
 
     const items = await prisma.consumable.findMany({
-      where: { companyId },
+      where,
       include: { type: true, company: true },
       orderBy: { id: 'asc' }
     })
@@ -58,8 +75,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getDevSession()
-    if (!session) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+    let session = await getDevSession()
+    if (!session) {
+      const sa = await auth()
+      if (!sa || !sa.user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+      session = { user: { id: sa.user.id as string, email: sa.user.email as string, role: sa.user.role as string, companyId: sa.user.companyId as string } }
+    }
 
     // require admin or super_admin
     try { requireAdminOrSuperAdmin(session) } catch (err: any) {

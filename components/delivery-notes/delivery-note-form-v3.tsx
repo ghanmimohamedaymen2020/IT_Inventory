@@ -25,15 +25,15 @@ interface User {
 interface Machine {
   id: string
   serialNumber: string
-  machineName: string
-  type: string
-  vendor: string
-  model: string
-  cpu: string | null
-  ram: string | null
-  disk: string | null
-  inventoryCode: string
-  userId: string | null
+  machineName?: string
+  type?: string
+  vendor?: string
+  model?: string
+  cpu?: string | null
+  ram?: string | null
+  disk?: string | null
+  inventoryCode?: string
+  userId?: string | null
 }
 
 interface Screen {
@@ -117,7 +117,8 @@ export function DeliveryNoteFormV3() {
   }
 
   const addConsumable = () => {
-    setConsumables([{ id: crypto.randomUUID(), typeName: consumableNames[0] || '', quantity: 1 }, ...consumables])
+    if (consumableNames.length === 0) return
+    setConsumables([{ id: crypto.randomUUID(), typeName: consumableNames[0], quantity: 1 }, ...consumables])
   }
 
   const updateConsumable = (id: string, changes: Partial<{ typeName?: string; quantity?: number; consumableId?: string }>) => {
@@ -299,16 +300,19 @@ export function DeliveryNoteFormV3() {
           consumables: consumables.map(c => ({ consumableId: c.consumableId, typeName: c.typeName, quantity: c.quantity }))
         }),
       })
+      const data = await response.json().catch(() => null)
 
       if (!response.ok) {
-        throw new Error("Impossible de générer le bon de livraison. Veuillez vérifier les données et réessayer.")
+        const msg = data?.error || "Impossible de générer le bon de livraison. Veuillez vérifier les données et réessayer."
+        toast.error(msg)
+        setIsLoading(false)
+        return
       }
 
-      const data = await response.json()
       toast.success("Bon de livraison généré avec succès")
       
       // Ouvrir le PDF dans un nouvel onglet
-      if (data.pdfUrl) {
+      if (data?.pdfUrl) {
         window.open(data.pdfUrl, '_blank')
       }
       
@@ -492,9 +496,9 @@ export function DeliveryNoteFormV3() {
 
         {/* Consommables */}
         <div className="mt-6">
-          <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
             <Label className="text-lg font-semibold">Consommables</Label>
-            <Button type="button" onClick={addConsumable} size="sm">
+            <Button type="button" onClick={addConsumable} size="sm" disabled={consumableNames.length === 0}>
               <Plus className="h-4 w-4 mr-2" />
               Ajouter un consommable
             </Button>
@@ -518,13 +522,12 @@ export function DeliveryNoteFormV3() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm">Nom / Type</Label>
-                  <Select value={c.typeName || ''} onValueChange={(v) => updateConsumable(c.id, { typeName: v })}>
+                  <Select value={c.typeName ?? (consumableNames[0] ?? '')} onValueChange={(v) => updateConsumable(c.id, { typeName: v })}>
                     <SelectTrigger className="h-9">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {consumableNames.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
-                      <SelectItem key="other" value="other">Autre (laisser vide)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

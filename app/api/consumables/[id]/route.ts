@@ -28,26 +28,59 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const session = await getDevSession()
     if (!session?.user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
-    // Only company_admin or super_admin can update stock
-    if (session.user.role !== 'super_admin' && session.user.role !== 'company_admin') {
-      return NextResponse.json({ error: 'Permissions insuffisantes' }, { status: 403 })
-    }
+    // Quantity updates: company_admin or super_admin allowed
+    // Minimum stock (threshold) updates: only super_admin
 
     const data = await req.json()
-    // Only allow quantity updates via this endpoint
-    if (typeof data.quantity !== 'number') return NextResponse.json({ error: 'quantity requis' }, { status: 400 })
-
-    // Ensure company scoping for company_admin
-    const existing = await prisma.consumable.findUnique({ where: { id: params.id } })
-    if (!existing) return NextResponse.json({ error: 'Consumable non trouvé' }, { status: 404 })
-    if (session.user.role !== 'super_admin' && session.user.companyId !== existing.companyId) {
-      return NextResponse.json({ error: 'Permissions insuffisantes sur cette société' }, { status: 403 })
+    // Allow updating quantity or minimumStock
+    const quantityProvided = typeof data.quantity === 'number'
+    const minProvided = typeof data.minimumStock === 'number' || data.minimumStock === null
+    if (!quantityProvided && !minProvided) return NextResponse.json({ error: 'quantity ou minimumStock requis' }, { status: 400 })
+    // If minimumStock is being updated, require super_admin
+    if (minProvided && session.user.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Seul le super_admin peut modifier le seuil' }, { status: 403 })
     }
 
-    const updated = await prisma.consumable.update({ where: { id: params.id }, data: { quantity: data.quantity } })
+    // Ensure company scoping for company_admin when updating quantity
+    const existing = await prisma.consumable.findUnique({ where: { id: params.id } })
+    if (!existing) return NextResponse.json({ error: 'Consumable non trouvé' }, { status: 404 })
+    if (quantityProvided) {
+      // Only super_admin may set absolute quantity via PATCH; other roles must use adjust endpoint
+      if (session.user.role !== 'super_admin') {
+        return NextResponse.json({ error: 'Seul le super_admin peut définir la quantité directement' }, { status: 403 })
+      }
+    }
+
+    const updateData: any = {}
+    if (quantityProvided) updateData.quantity = data.quantity
+    if (minProvided) updateData.minimumStock = data.minimumStock
+
+    const updated = await prisma.consumable.update({ where: { id: params.id }, data: updateData })
     return NextResponse.json({ consumable: updated })
   } catch (err) {
     console.error('PATCH /api/consumables/[id]', err)
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const session = await getDevSession()
+    if (!session?.user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+
+    // Only super_admin can delete consumables
+    if (session.user.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Seul le super_admin peut supprimer un consommable' }, { status: 403 })
+    }
+
+    const existing = await prisma.consumable.findUnique({ where: { id: params.id } })
+    if (!existing) return NextResponse.json({ error: 'Consumable non trouvé' }, { status: 404 })
+    // only super_admin reaches here
+
+    await prisma.consumable.delete({ where: { id: params.id } })
+    return NextResponse.json({ success: true })
+  } catch (err) {
+    console.error('DELETE /api/consumables/[id]', err)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
