@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { MachineForm } from "@/components/machines/machine-form"
 import { cookies } from "next/headers"
 import { jwtVerify } from "jose"
+import Link from "next/link"
 
 async function getDevSession() {
   const cookieStore = await cookies()
@@ -43,25 +44,31 @@ export default async function CreateMachinePage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Nouvelle Machine</h1>
-        <p className="text-muted-foreground">
-          Ajouter une nouvelle machine au parc informatique
-        </p>
+    <div className="max-w-7xl mx-auto py-8 px-4">
+      <div className="mb-6">
+        <Link href="/dashboard/machines" className="text-sm text-muted-foreground hover:underline">← Retour aux machines</Link>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Informations de la machine</CardTitle>
-          <CardDescription>
-            Remplissez les informations de la machine. Les champs avec * sont obligatoires.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <MachineForm />
-        </CardContent>
-      </Card>
+      <header className="mb-6">
+        <h1 className="text-3xl font-bold tracking-tight">Nouvelle Machine</h1>
+        <p className="text-sm text-muted-foreground mt-1">Ajouter une nouvelle machine au parc informatique</p>
+      </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
+        <div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Informations de la machine</CardTitle>
+              <CardDescription>
+                Remplissez les informations de la machine. Les champs avec * sont obligatoires.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <MachineForm />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }

@@ -84,6 +84,56 @@ export function UserForm() {
     toast.success('Bureau ajouté')
   }
 
+  const addDepartment = async () => {
+    const name = prompt('Nom du nouveau département')
+    if (!name) return
+    const trimmed = name.trim()
+    if (!trimmed) return
+    if (departments.includes(trimmed)) {
+      toast.error('Ce département existe déjà')
+      return
+    }
+    const updated = [...departments, trimmed]
+    setDepartments(updated)
+    localStorage.setItem('custom_departments', JSON.stringify(updated))
+    toast.success('Département ajouté')
+  }
+
+  const addSubscription = async () => {
+    const name = prompt('Nom du nouvel abonnement Office 365')
+    if (!name) return
+    const trimmed = name.trim()
+    if (!trimmed) return
+    if (subscriptions.includes(trimmed)) {
+      toast.error("Cet abonnement existe déjà")
+      return
+    }
+    const updated = [...subscriptions, trimmed]
+    setSubscriptions(updated)
+    localStorage.setItem('custom_subscriptions', JSON.stringify(updated))
+    toast.success('Abonnement ajouté')
+  }
+
+  const addGlobalEmail = async () => {
+    const name = prompt('Nouvel email global')
+    if (!name) return
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(trimmed)) {
+      toast.error('Format d\'email invalide')
+      return
+    }
+    if (globalEmails.includes(trimmed)) {
+      toast.error('Cet email existe déjà')
+      return
+    }
+    const updated = [...globalEmails, trimmed]
+    setGlobalEmails(updated)
+    localStorage.setItem('custom_global_emails', JSON.stringify(updated))
+    toast.success('Email global ajouté')
+  }
+
   const {
     register,
     handleSubmit,
@@ -312,19 +362,29 @@ export function UserForm() {
 
           <div className="space-y-2">
             <Label htmlFor="department">Département</Label>
-            <Select
-              onValueChange={(value) => setValue("department", value)}
-              defaultValue={watch("department")}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Sélectionner un département" />
-              </SelectTrigger>
-              <SelectContent>
-                {departments.map((department) => (
-                  <SelectItem key={department} value={department}>{department}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <Select
+                  onValueChange={(value) => setValue("department", value)}
+                  defaultValue={watch("department")}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un département" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((department) => (
+                      <SelectItem key={department} value={department}>{department}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <ShowForSuperAdmin>
+                <Button type="button" variant="secondary" size="icon" onClick={addDepartment} title="Ajouter un département">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </ShowForSuperAdmin>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -356,36 +416,56 @@ export function UserForm() {
 
           <div className="space-y-2">
             <Label htmlFor="office365Subscription">Abonnement Office 365</Label>
-            <Select
-              onValueChange={(value) => setValue("office365Subscription", value)}
-              defaultValue={watch("office365Subscription")}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Sélectionner un abonnement" />
-              </SelectTrigger>
-              <SelectContent>
-                {subscriptions.map((subscription) => (
-                  <SelectItem key={subscription} value={subscription}>{subscription}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <Select
+                  onValueChange={(value) => setValue("office365Subscription", value)}
+                  defaultValue={watch("office365Subscription")}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un abonnement" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subscriptions.map((subscription) => (
+                      <SelectItem key={subscription} value={subscription}>{subscription}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <ShowForSuperAdmin>
+                <Button type="button" variant="secondary" size="icon" onClick={addSubscription} title="Ajouter un abonnement">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </ShowForSuperAdmin>
+            </div>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="globalEmail">Email Global</Label>
-            <Select
-              onValueChange={(value) => setValue("globalEmail", value)}
-              defaultValue={watch("globalEmail")}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Sélectionner un email global" />
-              </SelectTrigger>
-              <SelectContent>
-                {globalEmails.map((email) => (
-                  <SelectItem key={email} value={email}>{email}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <Select
+                  onValueChange={(value) => setValue("globalEmail", value)}
+                  defaultValue={watch("globalEmail")}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un email global" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {globalEmails.map((email) => (
+                      <SelectItem key={email} value={email}>{email}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <ShowForSuperAdmin>
+                <Button type="button" variant="secondary" size="icon" onClick={addGlobalEmail} title="Ajouter un email global">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </ShowForSuperAdmin>
+            </div>
           </div>
         </div>
       </div>

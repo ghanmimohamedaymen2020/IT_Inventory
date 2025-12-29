@@ -609,6 +609,19 @@ export default function ConsumableList({
               </CardContent>
             </Card>
           )}
+
+          {!isSuperAdmin && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Création restreinte</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  Seul le super admin peut créer des consommables. Contactez un administrateur si vous avez besoin d'un nouveau consommable.
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Table */}
