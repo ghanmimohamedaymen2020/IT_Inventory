@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { Plus, Trash2 } from "lucide-react"
+import { ShowForSuperAdmin } from "@/components/admin/show-for-super-admin"
 import {
   Select,
   SelectContent,
@@ -67,6 +68,21 @@ export function UserForm() {
     if (savedDepartments) setDepartments(JSON.parse(savedDepartments))
     if (savedGlobalEmails) setGlobalEmails(JSON.parse(savedGlobalEmails))
   }, [])
+
+  const addOffice = async () => {
+    const name = prompt('Nom du nouveau bureau')
+    if (!name) return
+    const trimmed = name.trim()
+    if (!trimmed) return
+    if (offices.includes(trimmed)) {
+      toast.error('Ce bureau existe déjà')
+      return
+    }
+    const updated = [...offices, trimmed]
+    setOffices(updated)
+    localStorage.setItem('custom_offices', JSON.stringify(updated))
+    toast.success('Bureau ajouté')
+  }
 
   const {
     register,
@@ -313,19 +329,29 @@ export function UserForm() {
 
           <div className="space-y-2">
             <Label htmlFor="office">Bureau</Label>
-            <Select
-              onValueChange={(value) => setValue("office", value)}
-              defaultValue={watch("office")}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Sélectionner un bureau" />
-              </SelectTrigger>
-              <SelectContent>
-                {offices.map((office) => (
-                  <SelectItem key={office} value={office}>{office}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <Select
+                  onValueChange={(value) => setValue("office", value)}
+                  defaultValue={watch("office")}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un bureau" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {offices.map((office) => (
+                      <SelectItem key={office} value={office}>{office}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <ShowForSuperAdmin>
+                <Button type="button" variant="secondary" size="icon" onClick={addOffice} title="Ajouter un bureau">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </ShowForSuperAdmin>
+            </div>
           </div>
 
           <div className="space-y-2">
