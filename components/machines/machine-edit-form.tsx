@@ -147,6 +147,7 @@ export function MachineEditForm({ machine }: MachineEditFormProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [userRole, setUserRole] = useState<string | null>(null)
   const [users, setUsers] = useState<Array<{ id: string; firstName: string; lastName: string }>>([])
   const [companies, setCompanies] = useState<Array<{ id: string; name: string; code: string }>>([])
   const [screens, setScreens] = useState<Array<{ id: string; brand: string; model: string; inventoryCode: string }>>([])
@@ -206,6 +207,23 @@ export function MachineEditForm({ machine }: MachineEditFormProps) {
     }
 
     fetchData()
+  }, [])
+
+  // Load current server-side session to determine role for UI restrictions
+  useEffect(() => {
+    let mounted = true
+    const loadSession = async () => {
+      try {
+        const res = await fetch('/api/debug/session')
+        if (!res.ok) return
+        const data = await res.json()
+        if (mounted && data?.user?.role) setUserRole(data.user.role)
+      } catch (e) {
+        // ignore
+      }
+    }
+    loadSession()
+    return () => { mounted = false }
   }, [])
 
   useEffect(() => {
@@ -558,14 +576,14 @@ export function MachineEditForm({ machine }: MachineEditFormProps) {
             </div>
           )}
 
-          <div className="space-y-2">
+         {/*  <div className="space-y-2">
             <Label htmlFor="productKey">Clé de Produit Windows</Label>
             <Input
               id="productKey"
               {...register("productKey")}
               placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX"
             />
-          </div>
+          </div> */}
         </div>
 
         {/* Gestion */
@@ -651,12 +669,23 @@ export function MachineEditForm({ machine }: MachineEditFormProps) {
         {/* Actions */}
         <div className="flex justify-between">
           <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button type="button" variant="destructive" disabled={isDeleting}>
-                <Trash2 className="mr-2 h-4 w-4" />
-                Supprimer
-              </Button>
-            </AlertDialogTrigger>
+            {/* If the current user is a company_admin, disable deletion and show an access message */}
+            {userRole === 'company_admin' ? (
+              <div>
+                <Button type="button" variant="destructive" disabled className="opacity-80">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Supprimer
+                </Button>
+                <p className="text-sm text-red-600 mt-2">Accès refusé — suppression réservée aux administrateurs.</p>
+              </div>
+            ) : (
+              <AlertDialogTrigger asChild>
+                <Button type="button" variant="destructive" disabled={isDeleting}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Supprimer
+                </Button>
+              </AlertDialogTrigger>
+            )}
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Êtes-vous sûr?</AlertDialogTitle>
