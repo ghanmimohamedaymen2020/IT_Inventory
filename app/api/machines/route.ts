@@ -85,7 +85,12 @@ export async function POST(req: NextRequest) {
     const requestedCompanyId = (data as any).companyId as string | undefined
 
     // Si l'utilisateur demande une autre compagnie, vérifier les permissions basiques
-    if (requestedCompanyId && requestedCompanyId !== session.user.companyId && session.user.role !== 'super_admin') {
+    // Allow `admin` and `company_admin` to create machines for any company as requested.
+    if (
+      requestedCompanyId &&
+      requestedCompanyId !== session.user.companyId &&
+      !(session.user.role === 'super_admin' || session.user.role === 'admin' || session.user.role === 'company_admin')
+    ) {
       return NextResponse.json({ error: 'Permission refusée pour choisir cette société' }, { status: 403 })
     }
 
