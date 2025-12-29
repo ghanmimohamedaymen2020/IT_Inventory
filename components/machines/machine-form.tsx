@@ -193,11 +193,9 @@ export function MachineForm() {
   // Gérer le changement d'utilisateur assigné
   const handleUserChange = (userId: string) => {
     setValue("assignedTo", userId)
-    
-    // Trouver l'utilisateur sélectionné
+
+    // Préremplir l'emplacement à partir du bureau de l'utilisateur sélectionné.
     const selectedUser = users.find(u => u.id === userId)
-    
-    // Remplir automatiquement l'emplacement avec le bureau de l'utilisateur
     if (selectedUser?.office) {
       setValue("location", selectedUser.office)
     }
@@ -234,33 +232,35 @@ export function MachineForm() {
         <h3 className="text-lg font-semibold">Informations générales</h3>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="type">Type *</Label>
+            <Label htmlFor="type">Type *</Label>
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <Select
+                  onValueChange={(value) => {
+                    setValue("type", value as any)
+                    setSelectedType(value)
+                    setTechnicalSpecs({}) // Réinitialiser les specs quand on change de type
+                  }}
+                  defaultValue={watch("type")}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {machineTypes.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <ShowForSuperAdmin>
-                <Button size="icon" onClick={addMachineType} aria-label="Ajouter type">
+                <Button type="button" variant="outline" size="icon" onClick={addMachineType} aria-label="Ajouter type" title="Ajouter un type">
                   <Plus className="h-4 w-4" />
                 </Button>
               </ShowForSuperAdmin>
             </div>
-            <Select
-              onValueChange={(value) => {
-                setValue("type", value as any)
-                setSelectedType(value)
-                setTechnicalSpecs({}) // Réinitialiser les specs quand on change de type
-              }}
-              defaultValue={watch("type")}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Sélectionner un type" />
-              </SelectTrigger>
-              <SelectContent>
-                {machineTypes.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
             {errors.type && (
               <p className="text-sm text-red-500">{errors.type.message}</p>
             )}
@@ -349,35 +349,37 @@ export function MachineForm() {
           <div className="grid gap-4 md:grid-cols-2">
             {MACHINE_SPECS[selectedType as keyof typeof MACHINE_SPECS].fields.map((field) => (
                 <div key={field.name} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor={field.name}>{field.label}</Label>
-                  {field.name === 'windowsVersion' && (
-                    <ShowForSuperAdmin>
-                      <Button size="icon" onClick={addOs} aria-label="Ajouter OS">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </ShowForSuperAdmin>
-                  )}
-                </div>
+                <Label htmlFor={field.name}>{field.label}</Label>
                 {'options' in field && field.type === 'select' ? (
-                  <Select
-                    onValueChange={(value) => {
-                      setTechnicalSpecs({ ...technicalSpecs, [field.name]: value })
-                      setValue(field.name as any, value)
-                    }}
-                    value={technicalSpecs[field.name] || ''}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={`Sélectionner ${field.label.toLowerCase()}`} />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {(field.name === 'windowsVersion' ? (osOptions.length ? osOptions : (field as any).options) : (field as any).options).map((option: string) => (
-                          <SelectItem key={option} value={option}>
-                            {option}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <Select
+                        onValueChange={(value) => {
+                          setTechnicalSpecs({ ...technicalSpecs, [field.name]: value })
+                          setValue(field.name as any, value)
+                        }}
+                        value={technicalSpecs[field.name] || ''}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={`Sélectionner ${field.label.toLowerCase()}`} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(field.name === 'windowsVersion' ? (osOptions.length ? osOptions : (field as any).options) : (field as any).options).map((option: string) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {field.name === 'windowsVersion' && (
+                      <ShowForSuperAdmin>
+                        <Button type="button" variant="outline" size="icon" onClick={addOs} aria-label="Ajouter OS" title="Ajouter un OS">
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </ShowForSuperAdmin>
+                    )}
+                  </div>
                 ) : (
                   <Input
                     id={field.name}
@@ -451,15 +453,8 @@ export function MachineForm() {
             <Input
               id="location"
               {...register("location")}
-              placeholder="Rempli automatiquement"
-              disabled={!!watch("assignedTo")}
-              className={watch("assignedTo") ? "bg-muted" : ""}
+              placeholder="Rempli automatiquement selon le bureau de l'utilisateur"
             />
-            {watch("assignedTo") && (
-              <p className="text-xs text-muted-foreground">
-                📍 Emplacement automatique selon le bureau de l'utilisateur
-              </p>
-            )}
           </div>
         </div>
       </div>
