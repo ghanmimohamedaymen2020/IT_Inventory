@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Auth Flow Diagram</title>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+  </script>
+</head>
+<body>
+  <h1>Auth Flow (Mermaid)</h1>
+  <div class="mermaid">
+flowchart LR
+  Browser[(Utilisateur / Navigateur)] -->|1. Click Sign-in| NextAuth[NextAuth (app/api/auth)]
+  NextAuth -->|2. Redirect| Google[Google OAuth]
+  Google -->|3. Callback| NextAuth
+  NextAuth -->|4. Verify/Create| DB[(Prisma / DB)]
+  DB -->|5. User/Account| NextAuth
+  NextAuth -->|6. Set Session Cookie / JWT| Browser
+  Browser -->|7. Call API (e.g., /api/companies)| API[App API Routes (app/api/*)]
+  API -->|8. Verify cookie/token| NextAuth
+  API -->|9. Query| DB
+  DB -->|10. Data| API
+  API -->|11. Response| Browser
+  </div>
+  <p>Ouvrez ce fichier dans un navigateur pour voir et exporter le diagramme (clic droit &gt; sauvegarder sous / exporter SVG selon le navigateur).</p>
+</body>
+</html>

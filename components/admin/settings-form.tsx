@@ -391,6 +391,7 @@ function CompanyCard({
               width={150}
               height={96}
               className="object-contain"
+              style={{ width: 'auto', height: 'auto' }}
             />
           ) : (
             <div className="text-center">
@@ -401,18 +402,18 @@ function CompanyCard({
         </div>
 
         <div className="flex gap-2">
-          <Label htmlFor={fileInputId} className="flex-1">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="w-full"
-              disabled={uploadingLogo === company.id}
-            >
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="w-full flex-1"
+            disabled={uploadingLogo === company.id}
+          >
+            <label htmlFor={fileInputId} className="w-full cursor-pointer inline-flex items-center justify-center gap-2">
               <Upload className="h-3 w-3 mr-2" />
               {uploadingLogo === company.id ? 'Upload...' : company.logoPath ? 'Modifier' : 'Ajouter logo'}
-            </Button>
-          </Label>
+            </label>
+          </Button>
           
           {company.logoPath && (
             <Button type="button" variant="destructive" size="sm" onClick={() => onLogoDelete(company.id)}>
@@ -425,7 +426,7 @@ function CompanyCard({
           id={fileInputId}
           type="file"
           accept="image/png,image/jpeg,image/jpg,image/webp"
-          className="hidden"
+          className="sr-only"
           onChange={e => {
             const file = e.target.files?.[0]
             if (file) onLogoUpload(company.id, file)

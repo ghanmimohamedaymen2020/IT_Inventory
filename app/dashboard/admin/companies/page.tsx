@@ -14,6 +14,7 @@ interface Company {
   name: string
   code: string
   logoPath: string | null
+  updatedAt?: string
 }
 
 export default function CompaniesManagementPage() {
@@ -135,7 +136,13 @@ export default function CompaniesManagementPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {companies.map((company) => (
+        {companies.map((company) => {
+          // Add a cache-busting timestamp based on company.updatedAt
+          const logoSrc = company.logoPath
+            ? `${company.logoPath}?t=${company.updatedAt ? new Date(company.updatedAt).getTime() : Date.now()}`
+            : undefined
+
+          return (
           <Card key={company.id}>
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -149,34 +156,29 @@ export default function CompaniesManagementPage() {
             <CardContent className="space-y-4">
               {company.logoPath ? (
                 <div className="space-y-3">
-                  <div className="relative w-full h-32 bg-muted rounded-lg flex items-center justify-center overflow-hidden border">
+                    <div className="relative w-full h-32 bg-muted rounded-lg flex items-center justify-center overflow-hidden border">
                     <Image
-                      src={company.logoPath}
+                      src={logoSrc || ''}
                       alt={`Logo ${company.name}`}
                       width={200}
                       height={128}
                       className="object-contain"
+                      style={{ width: 'auto', height: 'auto' }}
                     />
                   </div>
                   <div className="flex gap-2">
-                    <Label
-                      htmlFor={`logo-upload-${company.id}`}
-                      className="flex-1"
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      disabled={uploadingLogo === company.id}
                     >
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                        disabled={uploadingLogo === company.id}
-                        onClick={() => {
-                          document.getElementById(`logo-upload-${company.id}`)?.click()
-                        }}
-                      >
+                      <label htmlFor={`logo-upload-${company.id}`} className="flex-1 cursor-pointer inline-flex items-center justify-center gap-2">
                         <Upload className="h-4 w-4 mr-2" />
                         {uploadingLogo === company.id ? 'Upload...' : 'Modifier'}
-                      </Button>
-                    </Label>
+                      </label>
+                    </Button>
                     <Button
                       type="button"
                       variant="destructive"
@@ -190,7 +192,7 @@ export default function CompaniesManagementPage() {
                     id={`logo-upload-${company.id}`}
                     type="file"
                     accept="image/png,image/jpeg,image/jpg,image/webp"
-                    className="hidden"
+                    className="sr-only"
                     onChange={(e) => {
                       const file = e.target.files?.[0]
                       if (file) {
@@ -207,26 +209,23 @@ export default function CompaniesManagementPage() {
                       <p className="text-sm text-muted-foreground">Aucun logo</p>
                     </div>
                   </div>
-                  <Label htmlFor={`logo-upload-${company.id}`} className="w-full">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      disabled={uploadingLogo === company.id}
-                      onClick={() => {
-                        document.getElementById(`logo-upload-${company.id}`)?.click()
-                      }}
-                    >
+                  <Button
+                    asChild
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    disabled={uploadingLogo === company.id}
+                  >
+                    <label htmlFor={`logo-upload-${company.id}`} className="w-full cursor-pointer inline-flex items-center justify-center gap-2">
                       <Upload className="h-4 w-4 mr-2" />
                       {uploadingLogo === company.id ? 'Upload...' : 'Ajouter un logo'}
-                    </Button>
-                  </Label>
+                    </label>
+                  </Button>
                   <Input
                     id={`logo-upload-${company.id}`}
                     type="file"
                     accept="image/png,image/jpeg,image/jpg,image/webp"
-                    className="hidden"
+                    className="sr-only"
                     onChange={(e) => {
                       const file = e.target.files?.[0]
                       if (file) {

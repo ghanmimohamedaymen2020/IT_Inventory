@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Plus } from "lucide-react"
 import { ExportMenu } from "@/components/exports/export-menu"
+import MachinesImport from "@/components/machines/machines-import"
 import { prisma } from "@/lib/db"
 import { cookies } from "next/headers"
 import { jwtVerify } from "jose"
@@ -70,12 +71,13 @@ export default async function MachinesPage() {
             Gestion du parc informatique
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <ExportMenu 
             data={machines} 
             filename="machines" 
             type="machines"
           />
+          <MachinesImport />
           <Link href="/dashboard/machines/create">
             <Button>
               <Plus className="mr-2 h-4 w-4" />

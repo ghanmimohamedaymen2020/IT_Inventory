@@ -1,0 +1,12 @@
+flowchart LR
+  Browser[(Utilisateur / Navigateur)] -->|1. Click Sign-in| NextAuth[NextAuth (app/api/auth)]
+  NextAuth -->|2. Redirect| Google[Google OAuth]
+  Google -->|3. Callback| NextAuth
+  NextAuth -->|4. Verify/Create| DB[(Prisma / DB)]
+  DB -->|5. User/Account| NextAuth
+  NextAuth -->|6. Set Session Cookie / JWT| Browser
+  Browser -->|7. Call API (e.g., /api/companies)| API[App API Routes (app/api/*)]
+  API -->|8. Verify cookie/token| NextAuth
+  API -->|9. Query| DB
+  DB -->|10. Data| API
+  API -->|11. Response| Browser

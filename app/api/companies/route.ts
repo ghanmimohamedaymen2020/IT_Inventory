@@ -45,6 +45,7 @@ export async function GET() {
         code: true,
         logoPath: true,
         createdAt: true,
+        updatedAt: true,
       }
     })
 

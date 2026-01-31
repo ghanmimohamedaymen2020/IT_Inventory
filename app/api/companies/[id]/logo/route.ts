@@ -88,7 +88,8 @@ export async function POST(
     // Supprimer l'ancien logo si existe
     if (company.logoPath) {
       try {
-        const oldFilepath = join(process.cwd(), 'public', company.logoPath)
+        const oldPath = company.logoPath.startsWith('/') ? company.logoPath.slice(1) : company.logoPath
+        const oldFilepath = join(process.cwd(), 'public', oldPath)
         await unlink(oldFilepath)
       } catch (error) {
         console.error('Erreur suppression ancien logo:', error)
@@ -147,7 +148,8 @@ export async function DELETE(
 
     if (company.logoPath) {
       try {
-        const filepath = join(process.cwd(), 'public', company.logoPath)
+        const pathToDelete = company.logoPath.startsWith('/') ? company.logoPath.slice(1) : company.logoPath
+        const filepath = join(process.cwd(), 'public', pathToDelete)
         await unlink(filepath)
       } catch (error) {
         console.error('Erreur suppression logo:', error)
