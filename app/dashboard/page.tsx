@@ -6,6 +6,7 @@ import { Laptop, Users, Package, Settings } from "lucide-react"
 import { cookies } from "next/headers"
 import { jwtVerify } from "jose"
 import { DashboardStats } from "@/components/reports/dashboard-stats"
+import { prisma } from '@/lib/db'
 
 async function getDevSession() {
   const cookieStore = await cookies()
@@ -56,13 +57,50 @@ export default async function DashboardPage() {
     redirect("/auth/login")
   }
 
-  // Stats mockées pour l'instant
-  const stats = {
-    totalMachines: 0,
-    activeMachines: 0,
-    totalUsers: 0,
-    pendingDeliveries: 0,
+  // Récupérer des stats réelles depuis la base
+  const companyFilter: any = {}
+  if (session.user.role !== 'super_admin' && session.user.companyId) {
+    companyFilter.companyId = session.user.companyId
   }
+
+  const [totalMachines, activeMachines, totalUsers, pendingDeliveries] = await Promise.all([
+    prisma.machine.count({ where: companyFilter }),
+    prisma.machine.count({ where: { ...companyFilter, assetStatus: 'en_service' } }),
+    prisma.user.count({ where: session.user.role === 'super_admin' ? {} : { companyId: session.user.companyId } }),
+    prisma.deliveryNote.count({ where: session.user.role === 'super_admin' ? { status: 'pending' } : { ...companyFilter, status: 'pending' } }),
+  ])
+
+  const stats = {
+    totalMachines,
+    activeMachines,
+    totalUsers,
+    pendingDeliveries,
+  }
+
+  // Fetch lists for visualizations
+  const machinesRaw = await prisma.machine.findMany({
+    where: companyFilter,
+    select: { type: true, assetStatus: true }
+  })
+
+  // Map DB fields to the shape the DashboardStats component expects
+  const machines = machinesRaw.map(m => ({
+    type: m.type,
+    status: m.assetStatus === 'en_service' ? 'active' : (m.assetStatus === 'maintenance' ? 'maintenance' : (m.assetStatus === 'retiré' || m.assetStatus === 'retire' ? 'retired' : 'stock'))
+  }))
+
+  const usersList = await prisma.user.findMany({ where: session.user.role === 'super_admin' ? {} : { companyId: session.user.companyId }, select: { id: true } })
+
+  // Delivery notes for last 6 months
+  const sixMonthsAgo = new Date()
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5)
+  const deliveryNotes = await prisma.deliveryNote.findMany({
+    where: {
+      ...(session.user.role === 'super_admin' ? {} : { companyId: session.user.companyId }),
+      deliveryDate: { gte: sixMonthsAgo }
+    },
+    select: { deliveryDate: true }
+  })
 
   return (
     <div className="space-y-6">
