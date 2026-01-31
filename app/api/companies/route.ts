@@ -44,6 +44,8 @@ export async function GET() {
         name: true,
         code: true,
         logoPath: true,
+        primaryColor: true,
+        primaryColorAuto: true,
         createdAt: true,
         updatedAt: true,
       }

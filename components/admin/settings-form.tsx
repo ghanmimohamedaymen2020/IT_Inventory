@@ -25,6 +25,10 @@ interface Company {
   name: string
   code: string
   logoPath: string | null
+  primaryColor?: string | null
+  accentColor?: string | null
+  textColor?: string | null
+  primaryColorAuto?: boolean
 }
 
 type ListType = 'offices' | 'subscriptions' | 'departments' | 'emails' | 'machineTypes' | 'softwares'
@@ -177,6 +181,21 @@ export function SettingsForm() {
       const res = await fetch('/api/society-logos', { method: 'POST', body: formData })
       if (res.ok) {
         await loadCompanies()
+        // ask server to compute dominant color from saved logo and enable auto mode
+        try {
+          const compute = await fetch(`/api/companies/${companyId}/compute-color`)
+          const j = await compute.json()
+          if (compute.ok && j?.color) {
+            await fetch(`/api/companies/${companyId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ primaryColor: j.color, primaryColorAuto: true })
+            })
+            await loadCompanies()
+          }
+        } catch (err) {
+          console.error('Erreur calcul couleur auto:', err)
+        }
         toast.success("Logo uploadé")
       }
     } catch {
@@ -369,6 +388,37 @@ function CompanyCard({
   onRemove: () => void
 }) {
   const fileInputId = `logo-${company.id}`
+  const [editingColors, setEditingColors] = useState(false)
+  const [colors, setColors] = useState<{ primary: string }>({
+    primary: company.primaryColor || '#000000'
+  })
+  const [autoEnabled, setAutoEnabled] = useState<boolean>(!!company.primaryColorAuto)
+
+  useEffect(() => {
+    setAutoEnabled(!!company.primaryColorAuto)
+  }, [company.primaryColorAuto])
+
+  const saveColors = async () => {
+    try {
+      const res = await fetch(`/api/companies/${company.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ primaryColor: colors.primary })
+      })
+      if (res.ok) {
+        toast.success('Couleur sauvegardée')
+        setEditingColors(false)
+      } else {
+        const data = await res.json()
+        toast.error(data?.error || 'Erreur sauvegarde couleur')
+      }
+    } catch (err) {
+      console.error(err)
+      toast.error('Erreur sauvegarde couleur')
+    }
+  }
+
+  // color computation handled on server via /api/companies/[id]/compute-color
 
   return (
     <div className="border rounded-lg p-4 space-y-3">
@@ -420,6 +470,81 @@ function CompanyCard({
               <Trash2 className="h-3 w-3" />
             </Button>
           )}
+        </div>
+
+        <div className="flex items-center gap-2 mt-3">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded border" style={{ background: colors.primary }} />
+            <Button size="sm" variant="outline" onClick={() => setEditingColors(!editingColors)}>
+              Choisir couleur
+            </Button>
+          </div>
+          {editingColors && (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                <label className="text-xs">Primary</label>
+                <input type="color" className="w-10 h-8 p-0" value={colors.primary} onChange={e => setColors({ primary: e.target.value })} />
+              </div>
+              <Button size="sm" onClick={saveColors}>Enregistrer</Button>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            <label className="inline-flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={autoEnabled}
+                onChange={async (e) => {
+                  const checked = e.target.checked
+                  // optimistic UI update
+                  setAutoEnabled(checked)
+                  if (checked) {
+                    if (!company.logoPath) {
+                      toast.error('Aucun logo pour calculer la couleur')
+                      setAutoEnabled(false)
+                      return
+                    }
+                    try {
+                      const res = await fetch(`/api/companies/${company.id}/compute-color`)
+                      const json = await res.json()
+                      if (!res.ok) throw new Error(json?.error || 'compute failed')
+                      const dominant = json.color
+                      const p = await fetch(`/api/companies/${company.id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ primaryColor: dominant, primaryColorAuto: true })
+                      })
+                      if (!p.ok) throw new Error('PATCH failed')
+                      setColors({ primary: dominant })
+                      setAutoEnabled(true)
+                      toast.success('Couleur automatique appliquée')
+                    } catch (err) {
+                      console.error(err)
+                      setAutoEnabled(false)
+                      toast.error('Impossible de calculer la couleur')
+                    }
+                  } else {
+                    try {
+                      const p = await fetch(`/api/companies/${company.id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ primaryColorAuto: false })
+                      })
+                      if (!p.ok) throw new Error('PATCH failed')
+                      setAutoEnabled(false)
+                      toast.success('Mode manuel activé')
+                    } catch (err) {
+                      console.error(err)
+                      // revert UI on failure
+                      setAutoEnabled(true)
+                      toast.error('Impossible de passer en mode manuel')
+                    }
+                  }
+                }}
+              />
+              <span className="text-sm">Auto</span>
+            </label>
+          </div>
         </div>
 
         <Input

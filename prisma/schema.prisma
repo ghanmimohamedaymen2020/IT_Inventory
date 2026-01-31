@@ -12,6 +12,10 @@ model Company {
   name            String            @unique
   code            String?
   logoPath        String?
+  primaryColor    String?
+  primaryColorAuto Boolean           @default(false)
+  accentColor     String?
+  textColor       String?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
   admins          Admin[]

@@ -170,8 +170,30 @@ export async function POST(request: NextRequest) {
     let accentColor = [33, 150, 243]
     let logoBase64 = null
     let logoFormat = "PNG"
+    // Track whether we've already resolved colors (to avoid overwriting stored values)
+    let colorsResolved = false
 
     // Charger et analyser le logo si disponible
+    // If company has an explicit primaryColor stored, prefer it and do not recompute from logo.
+    if (user.company?.primaryColor) {
+      try {
+        const hex = (user.company.primaryColor || '').replace(/^#/, '')
+        if (/^[0-9A-Fa-f]{6}$/.test(hex)) {
+          const r = parseInt(hex.substring(0,2), 16)
+          const g = parseInt(hex.substring(2,4), 16)
+          const b = parseInt(hex.substring(4,6), 16)
+          primaryColor = [r,g,b]
+          accentColor = [Math.min(255, r + 40), Math.min(255, g + 40), Math.min(255, b + 40)]
+          // mark colors as resolved to avoid overwriting later
+          // This makes stored `primaryColor` authoritative even if primaryColorAuto is true.
+          // It prevents recomputations during BL/BR generation.
+          colorsResolved = true
+        }
+      } catch (err) {
+        console.warn('Failed to parse stored primaryColor for company', user.company?.id, err)
+      }
+    }
+
     if (user.company?.logoPath) {
       try {
         const logoPath = path.join(process.cwd(), "public", user.company.logoPath)
@@ -184,7 +206,6 @@ export async function POST(request: NextRequest) {
           // sidecar color file next to the logo (explicit override)
           const logoBase = user.company.logoPath.replace(/\.[^/.]+$/, "")
           const sidecarPath = path.join(process.cwd(), "public", `${logoBase}.color.json`)
-          let colorsResolved = false
 
           if (fs.existsSync(sidecarPath)) {
             try {

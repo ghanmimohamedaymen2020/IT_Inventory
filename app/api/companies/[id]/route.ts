@@ -45,12 +45,16 @@ export async function PATCH(
 ) {
   try {
     const body = await request.json()
-    const { name, code, logoPath } = body
+    const { name, code, logoPath, primaryColor, accentColor, textColor, primaryColorAuto } = body
 
     const updateData: any = {}
     if (name !== undefined) updateData.name = name
     if (code !== undefined) updateData.code = code
     if (logoPath !== undefined) updateData.logoPath = logoPath
+    if (primaryColor !== undefined) updateData.primaryColor = primaryColor
+    if (accentColor !== undefined) updateData.accentColor = accentColor
+    if (textColor !== undefined) updateData.textColor = textColor
+    if (primaryColorAuto !== undefined) updateData.primaryColorAuto = primaryColorAuto
 
     const company = await prisma.company.update({
       where: { id: params.id },

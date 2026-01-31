@@ -9,18 +9,62 @@ import { toast } from "@/components/ui/use-toast"
 import { Upload, Trash2, Building2, Image as ImageIcon } from "lucide-react"
 import Image from "next/image"
 
+// Compute a simple dominant color by drawing the image to a small canvas and averaging pixels.
+async function extractDominantColor(src: string): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas')
+        const w = 40, h = 40
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')!
+        ctx.drawImage(img, 0, 0, w, h)
+        const data = ctx.getImageData(0, 0, w, h).data
+        let r = 0, g = 0, b = 0, count = 0
+        for (let i = 0; i < data.length; i += 4) {
+          const alpha = data[i+3]
+          if (alpha === 0) continue
+          r += data[i]
+          g += data[i+1]
+          b += data[i+2]
+          count++
+        }
+        if (count === 0) return resolve('#000000')
+        r = Math.round(r / count)
+        g = Math.round(g / count)
+        b = Math.round(b / count)
+        const toHex = (v: number) => v.toString(16).padStart(2, '0')
+        resolve(`#${toHex(r)}${toHex(g)}${toHex(b)}`)
+      } catch (err) {
+        reject(err)
+      }
+    }
+    img.onerror = (e) => reject(e)
+    img.src = src
+  })
+}
+
 interface Company {
   id: string
   name: string
   code: string
   logoPath: string | null
   updatedAt?: string
+  primaryColor?: string | null
+  primaryColorAuto?: boolean
+  accentColor?: string | null
+  textColor?: string | null
 }
 
 export default function CompaniesManagementPage() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
   const [uploadingLogo, setUploadingLogo] = useState<string | null>(null)
+  const [editingColorFor, setEditingColorFor] = useState<string | null>(null)
+  const [colorValues, setColorValues] = useState<Record<string, { primary: string }>>({})
 
   useEffect(() => {
     loadCompanies()
@@ -32,6 +76,12 @@ export default function CompaniesManagementPage() {
       if (response.ok) {
         const data = await response.json()
         setCompanies(data)
+        // initialize primary color values
+        const initialColors: Record<string, { primary: string }> = {}
+        (data || []).forEach((c: any) => {
+          initialColors[c.id] = { primary: c.primaryColor || '#000000' }
+        })
+        setColorValues(initialColors)
       }
     } catch (error) {
       console.error('Erreur chargement sociétés:', error)
@@ -63,7 +113,20 @@ export default function CompaniesManagementPage() {
           title: "Succès",
           description: "Logo uploadé avec succès",
         })
-        loadCompanies()
+        // compute dominant color from uploaded file and set auto mode
+        try {
+          const objectUrl = URL.createObjectURL(file)
+          const dominant = await extractDominantColor(objectUrl)
+          URL.revokeObjectURL(objectUrl)
+          await fetch(`/api/companies/${companyId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ primaryColor: dominant, primaryColorAuto: true })
+          })
+        } catch (err) {
+          console.error('Erreur calcul couleur auto:', err)
+        }
+        await loadCompanies()
       } else {
         toast({
           title: "Erreur",
@@ -113,6 +176,28 @@ export default function CompaniesManagementPage() {
         description: "Erreur lors de la suppression du logo",
         variant: "destructive",
       })
+    }
+  }
+
+  const handleSaveColor = async (companyId: string) => {
+    const color = colorValues[companyId]
+    try {
+      const res = await fetch(`/api/companies/${companyId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ primaryColor: color?.primary, primaryColorAuto: false })
+      })
+      if (res.ok) {
+        toast({ title: 'Succès', description: 'Couleur sauvegardée' })
+        setEditingColorFor(null)
+        loadCompanies()
+      } else {
+        const data = await res.json()
+        toast({ title: 'Erreur', description: data.error || 'Impossible de sauvegarder', variant: 'destructive' })
+      }
+    } catch (err) {
+      console.error('Erreur sauvegarde couleur:', err)
+      toast({ title: 'Erreur', description: 'Erreur lors de la sauvegarde', variant: 'destructive' })
     }
   }
 
@@ -187,6 +272,73 @@ export default function CompaniesManagementPage() {
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded border" style={{ background: (colorValues[company.id]?.primary) || (company.primaryColor || '#000000') }} />
+                      <Button size="sm" variant="outline" onClick={() => setEditingColorFor(editingColorFor === company.id ? null : company.id)}>
+                        Choisir couleur
+                      </Button>
+                    </div>
+                    {editingColorFor === company.id && (
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
+                          <label className="text-xs">Primary</label>
+                          <input
+                            type="color"
+                            value={colorValues[company.id]?.primary || (company.primaryColor || '#000000')}
+                            onChange={(e) => setColorValues(prev => ({ ...prev, [company.id]: { ...(prev[company.id] || {}), primary: e.target.value } }))}
+                            className="w-10 h-8 p-0"
+                          />
+                        </div>
+                        <Button size="sm" onClick={() => handleSaveColor(company.id)}>Enregistrer</Button>
+                      </div>
+                    )}
+                  <div className="flex items-center gap-2 mt-2">
+                    <label className="text-sm">Mode</label>
+                    <div className="flex items-center gap-2">
+                      <label className="inline-flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={!!company.primaryColorAuto}
+                          onChange={async (e) => {
+                            const checked = e.target.checked
+                            if (checked) {
+                              // auto: compute dominant color from logo and save
+                              if (!company.logoPath) {
+                                toast({ title: 'Erreur', description: 'Aucun logo pour calculer la couleur', variant: 'destructive' })
+                                return
+                              }
+                              try {
+                                const res = await fetch(`/api/companies/${company.id}/compute-color`)
+                                const json = await res.json()
+                                if (!res.ok) throw new Error(json?.error || 'compute failed')
+                                const dominant = json.color
+                                await fetch(`/api/companies/${company.id}`, {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ primaryColor: dominant, primaryColorAuto: true })
+                                })
+                                loadCompanies()
+                              } catch (err) {
+                                console.error(err)
+                                toast({ title: 'Erreur', description: 'Impossible de calculer la couleur', variant: 'destructive' })
+                              }
+                            } else {
+                              // manual mode: just unset auto flag
+                              await fetch(`/api/companies/${company.id}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ primaryColorAuto: false })
+                              })
+                              loadCompanies()
+                            }
+                          }}
+                        />
+                        <span className="text-sm">Auto</span>
+                      </label>
+                    </div>
+                  </div>
                   </div>
                   <Input
                     id={`logo-upload-${company.id}`}

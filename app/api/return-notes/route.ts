@@ -339,6 +339,25 @@ export async function POST(req: Request) {
     let logoFormat = "PNG"
     let primaryColor = [26, 35, 126]
     let accentColor = [33, 150, 243]
+    // Track whether colors were resolved from stored/company data to avoid overwriting
+    let colorsResolved = false
+
+    // If company has an explicit primaryColor stored, prefer it and do not recompute from logo
+    if (company.primaryColor) {
+      try {
+        const hex = (company.primaryColor || '').replace(/^#/, '')
+        if (/^[0-9A-Fa-f]{6}$/.test(hex)) {
+          const r = parseInt(hex.substring(0,2), 16)
+          const g = parseInt(hex.substring(2,4), 16)
+          const b = parseInt(hex.substring(4,6), 16)
+          primaryColor = [r,g,b]
+          accentColor = [Math.min(255, r + 40), Math.min(255, g + 40), Math.min(255, b + 40)]
+          colorsResolved = true
+        }
+      } catch (err) {
+        console.warn('Failed to parse stored primaryColor for company', company.id, err)
+      }
+    }
 
     if (company.logoPath) {
       try {
@@ -352,7 +371,6 @@ export async function POST(req: Request) {
           // Try to load a sidecar color file next to the logo
           const logoBase = company.logoPath.replace(/\.[^/.]+$/, "")
           const sidecarPath = path.join(process.cwd(), "public", `${logoBase}.color.json`)
-          let colorsResolved = false
           if (fs.existsSync(sidecarPath)) {
             try {
               const raw = fs.readFileSync(sidecarPath, "utf8")
@@ -379,32 +397,20 @@ export async function POST(req: Request) {
 
           if (!colorsResolved) {
             try {
-              const img = await Jimp.read(logoPath)
-              img.resize(20, 20)
-              let r = 0, g = 0, b = 0, count = 0
-              for (let x = 0; x < img.bitmap.width; x++) {
-                for (let y = 0; y < img.bitmap.height; y++) {
-                  const rgba = Jimp.intToRGBA(img.getPixelColor(x, y))
-                  // ignore fully transparent pixels
-                  if (rgba.a === 0) continue
-                  // ignore near-white pixels (likely background)
-                  if (rgba.r > 240 && rgba.g > 240 && rgba.b > 240) continue
-                  r += rgba.r
-                  g += rgba.g
-                  b += rgba.b
-                  count++
+              // Use the same k-means dominant color extraction as the delivery note generator
+              const centers = await extractDominantColorsFromImage(logoPath, 3)
+              if (centers && centers.length > 0) {
+                primaryColor = centers[0].map((v: number) => Math.round(v))
+                if (centers.length > 1) {
+                  accentColor = centers[1].map((v: number) => Math.round(v))
+                } else {
+                  const [r, g, b] = primaryColor
+                  accentColor = [Math.min(255, r + 40), Math.min(255, g + 40), Math.min(255, b + 40)]
                 }
-              }
-              if (count > 0) {
-                const avgR = Math.round(r / count)
-                const avgG = Math.round(g / count)
-                const avgB = Math.round(b / count)
-                primaryColor = [avgR, avgG, avgB]
-                accentColor = [Math.min(255, avgR + 40), Math.min(255, avgG + 40), Math.min(255, avgB + 40)]
                 colorsResolved = true
               }
             } catch (err) {
-              console.warn('Extraction couleur automatique impossible pour', logoPath, err)
+              console.warn('Dominant color extraction failed for', logoPath, err)
             }
           }
 
@@ -428,7 +434,8 @@ export async function POST(req: Request) {
               }
             }
               // FINAL ENFORCEMENT: For TRTU, force all colors to solid Transglory blue after all color logic
-              if (company.code && company.code.toUpperCase() === 'TRTU') {
+              // Only apply if we haven't already resolved colors (allow admin/stored colors to be authoritative)
+              if (!colorsResolved && company.code && company.code.toUpperCase() === 'TRTU') {
                 primaryColor = [26, 35, 126];
                 accentColor = [26, 35, 126];
               }
@@ -453,14 +460,20 @@ export async function POST(req: Request) {
 
     doc.setFont("helvetica", "bold")
     doc.setFontSize(20)
-    // Force header text color for all companies (no mixing)
-    if (company.code) {
+    // Debug: log which color source we use for this BR
+    try {
+      console.info(`[BR COLOR] company=${company?.id} code=${company?.code} stored=${company?.primaryColor} resolved=${colorsResolved} rgb=${primaryColor.join(',')}`)
+    } catch (e) {
+      /* ignore logging errors */
+    }
+    // Prefer stored primaryColor when available; otherwise fall back to company-code map or default
+    if (colorsResolved) {
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
+    } else if (company.code) {
       const code = company.code.toUpperCase();
-      // Add more company codes/colors here as needed
       const companyColors: Record<string, [number, number, number]> = {
         'TRTU': [26, 35, 126], // Transglory blue
         'GRTU': [27, 94, 32],  // Green Tunisie
-        // Add more: 'CODE': [R, G, B]
       };
       if (Object.prototype.hasOwnProperty.call(companyColors, code)) {
         const c = companyColors[code as keyof typeof companyColors] as [number, number, number]
@@ -482,13 +495,14 @@ export async function POST(req: Request) {
     const currentTime = new Date(returnNote.returnDate).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
     doc.text(`${currentDate} - ${currentTime}`, pageWidth - margin, margin + 21, { align: "right" })
 
-    // Ligne de séparation colorée (no mixing)
-    if (company.code) {
+    // Ligne de séparation colorée (prefer stored color)
+    if (colorsResolved) {
+      doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2])
+    } else if (company.code) {
       const code = company.code.toUpperCase();
       const companyColors = {
         'TRTU': [26, 35, 126],
         'GRTU': [27, 94, 32],
-        // Add more: 'CODE': [R, G, B]
       };
       if (Object.prototype.hasOwnProperty.call(companyColors, code)) {
         const c = companyColors[code as keyof typeof companyColors] as [number, number, number]
@@ -553,13 +567,14 @@ export async function POST(req: Request) {
     yPos += 40
 
     // === TABLEAU DES ÉQUIPEMENTS ===
-    // En-tête du tableau (no mixing)
-    if (company.code) {
+    // En-tête du tableau (prefer stored color)
+    if (colorsResolved) {
+      doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2])
+    } else if (company.code) {
       const code = company.code.toUpperCase();
       const companyColors = {
         'TRTU': [26, 35, 126],
         'GRTU': [27, 94, 32],
-        // Add more: 'CODE': [R, G, B]
       };
       if (Object.prototype.hasOwnProperty.call(companyColors, code)) {
         const c = companyColors[code as keyof typeof companyColors] as [number, number, number]
