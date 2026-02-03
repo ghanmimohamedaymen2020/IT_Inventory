@@ -102,6 +102,13 @@ export default async function DashboardPage() {
     select: { deliveryDate: true }
   })
 
+  // Low-stock consumables for notification banner
+  const consumableWhere: any = {}
+  if (session.user.role !== 'super_admin' && session.user.companyId) consumableWhere.companyId = session.user.companyId
+  // fetch consumables that have a minimumStock defined, then filter by quantity <= minimumStock
+  const lowRaw = await prisma.consumable.findMany({ where: consumableWhere, include: { type: true } })
+  const lowConsumables = lowRaw.filter(c => c.minimumStock !== null && c.quantity <= (c.minimumStock as number))
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -217,15 +224,28 @@ export default async function DashboardPage() {
         </CardContent>
       </Card>
 
+      {lowConsumables.length > 0 && (
+        <Card className="border-red-200 bg-red-50">
+          <CardHeader>
+            <CardTitle>Consommables en faible stock</CardTitle>
+            <CardDescription>Action requise: réapprovisionnement recommandé</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="list-disc pl-5">
+              {lowConsumables.map(c => (
+                <li key={c.id} className="text-sm">
+                  {c.type?.name ?? 'Inconnu'} — {c.quantity} / {c.minimumStock}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
       <DashboardStats 
-        machines={[
-          { type: "desktop", status: "active" },
-          { type: "laptop", status: "active" },
-          { type: "laptop", status: "maintenance" },
-          { type: "server", status: "active" },
-        ]}
-        users={[]}
-        deliveryNotes={[]}
+        machines={machines}
+        users={usersList}
+        deliveryNotes={deliveryNotes}
       />
     </div>
   )

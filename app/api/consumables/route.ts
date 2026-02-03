@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
 
     const url = new URL(request.url)
     const qCompanyId = url.searchParams.get('companyId')
+    const lowOnly = url.searchParams.get('low') === 'true'
 
     // Build a safe where clause. Only include companyId if defined.
     const where: any = {}
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Map to the front-end shape expected by `components/consumables/consumable-list.tsx`
-    const mapped = items.map(i => ({
+    let mapped = items.map(i => ({
       id: i.id,
       name: i.type?.name ?? 'Unknown',
       sku: null,
@@ -65,6 +66,11 @@ export async function GET(request: NextRequest) {
       minThreshold: i.minimumStock ?? null,
       companyId: i.companyId
     }))
+
+    // If requested, return only low-stock items (minimumStock defined and quantity <= minimumStock).
+    if (lowOnly) {
+      mapped = mapped.filter(m => m.minThreshold !== null && m.quantity <= (m.minThreshold as number))
+    }
 
     return NextResponse.json(mapped)
   } catch (err) {

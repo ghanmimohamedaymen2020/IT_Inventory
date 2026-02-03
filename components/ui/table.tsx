@@ -93,6 +93,43 @@ const TableCell = React.forwardRef<
 ))
 TableCell.displayName = "TableCell"
 
+// TableActionCell: cell with quick action buttons (hidden until hover)
+const TableActionCell = React.forwardRef<
+  HTMLTableCellElement,
+  React.TdHTMLAttributes<HTMLTableCellElement> & {
+    actions?: Array<{ label: string; onClick: () => void; variant?: 'default' | 'destructive' }>
+  }
+>(({ className, actions = [], children, ...props }, ref) => (
+  <td
+    ref={ref}
+    className={cn("p-4 align-middle [&:has([role=checkbox])]:pr-0 group", className)}
+    {...props}
+  >
+    <div className="flex items-center justify-between">
+      <span className="truncate">{children}</span>
+      {actions.length > 0 && (
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+          {actions.map((action, index) => (
+            <button
+              key={index}
+              onClick={action.onClick}
+              className={cn(
+                "text-xs px-2 py-1 rounded",
+                action.variant === 'destructive'
+                  ? "bg-red-50 text-red-700 hover:bg-red-100"
+                  : "bg-gray-50 text-gray-700 hover:bg-gray-100"
+              )}
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  </td>
+))
+TableActionCell.displayName = "TableActionCell"
+
 const TableCaption = React.forwardRef<
   HTMLTableCaptionElement,
   React.HTMLAttributes<HTMLTableCaptionElement>

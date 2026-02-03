@@ -744,6 +744,55 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Pre-validate consumables: ensure they exist for this company and have sufficient stock
+    const resolvedConsumables: Array<{ record: any, qty: number, label: string }> = []
+    const missing: string[] = []
+    const insufficient: string[] = []
+    if (Array.isArray(consumables) && consumables.length > 0) {
+      for (const c of consumables) {
+        const qty = Number(c.quantity || 0)
+        if (!qty || qty <= 0) continue
+
+        let consumableRecord = null
+        if (c.consumableId) {
+          consumableRecord = await prisma.consumable.findUnique({ where: { id: c.consumableId }, include: { type: true } })
+        } else if (c.typeId) {
+          consumableRecord = await prisma.consumable.findFirst({ where: { typeId: c.typeId, companyId: user.companyId }, include: { type: true } })
+        } else if (c.typeName) {
+          consumableRecord = await prisma.consumable.findFirst({ where: { companyId: user.companyId, type: { name: c.typeName } }, include: { type: true } })
+        } else if (c.name) {
+          consumableRecord = await prisma.consumable.findFirst({ where: { companyId: user.companyId, type: { name: c.name } }, include: { type: true } })
+        }
+
+        const label = c.typeName || c.name || c.sku || c.consumableId || 'consommable inconnu'
+        if (!consumableRecord) {
+          missing.push(label)
+          continue
+        }
+
+        if (consumableRecord.companyId && consumableRecord.companyId !== user.companyId) {
+          missing.push(`${label} (appartient à une autre société)`)
+          continue
+        }
+
+        if (consumableRecord.quantity < qty) {
+          const readableName = (consumableRecord.type?.name ?? consumableRecord.name) || label
+          insufficient.push(`${readableName} — disponible ${consumableRecord.quantity}, demandé ${qty}`)
+          continue
+        }
+
+        resolvedConsumables.push({ record: consumableRecord, qty, label })
+      }
+    }
+
+    if (missing.length > 0) {
+      return NextResponse.json({ error: 'Consommables non trouvés pour la société: ' + missing.join(', '), missing }, { status: 400 })
+    }
+
+    if (insufficient.length > 0) {
+      return NextResponse.json({ error: 'Stock insuffisant: ' + insufficient.join(' ; '), insufficient }, { status: 400 })
+    }
+
     // Sauvegarder le bon de livraison dans la base de données
     // Si des consommables sont fournis, décrémenter les stocks transactionnellement
     const deliveryNote = await prisma.$transaction(async (tx) => {
@@ -769,79 +818,23 @@ export async function POST(request: NextRequest) {
       })
 
       // process consumables allocations if any
-      if (Array.isArray(consumables) && consumables.length > 0) {
-        for (const c of consumables) {
-          // Expect either consumableId or (companyId+name) or typeName
-          const consumableId = c.consumableId || null
-          const qty = Number(c.quantity || 0)
-          if (!qty || qty <= 0) continue
-
-          let consumableRecord = null
-          if (consumableId) {
-            consumableRecord = await tx.consumable.findUnique({ where: { id: consumableId }, include: { type: true } })
-          } else if (c.typeId) {
-            // c.typeId may refer to a ConsumableType id; find consumable by typeId and company
-            consumableRecord = await tx.consumable.findFirst({ where: { typeId: c.typeId, companyId: user.companyId }, include: { type: true } })
-          } else if (c.typeName) {
-            // try find by company + type name
-            consumableRecord = await tx.consumable.findFirst({ where: { companyId: user.companyId, type: { name: c.typeName } }, include: { type: true } })
-          } else if (c.name) {
-            // accept `name` from older client payloads
-            consumableRecord = await tx.consumable.findFirst({ where: { companyId: user.companyId, type: { name: c.name } }, include: { type: true } })
+      if (resolvedConsumables.length > 0) {
+        for (const rc of resolvedConsumables) {
+          const qty = rc.qty
+          try {
+            const desc = `${rc.record.type?.name ?? rc.record.name}${rc.record.sku ? ' (' + rc.record.sku + ')' : ''}`
+            await tx.deliveryItem.create({ data: { description: desc, quantity: qty, deliveryNoteId: dn.id } })
+          } catch (err) {
+            console.warn('deliveryItem create failed', err)
           }
 
-          // If not found, reject: don't allow generating BL with unknown/off-company consumables
-          if (!consumableRecord) {
-            const label = c.typeName || c.name || c.sku || c.consumableId || 'consommable inconnu'
-            throw new Error(`Consommable non trouvé pour la société ${user.company?.name || user.companyId}: ${label}`)
+          try {
+            await tx.consumableHistory.create({ data: { consumableId: rc.record.id, change: -qty, reason: `Livré via BL ${noteNumber}`, userId: userId, recipientId: userId, deliveryNoteId: dn.id } })
+          } catch (err) {
+            console.warn('consumableHistory create failed', err)
           }
 
-          // Ensure the found consumable belongs to the same company
-          if (consumableRecord.companyId && consumableRecord.companyId !== user.companyId) {
-            const label = consumableRecord.type?.name ?? consumableRecord.name ?? consumableRecord.id
-            throw new Error(`Le consommable ${label} n'appartient pas à la société sélectionnée.`)
-          }
-
-          // if found, validate stock and create history + update quantity
-          if (consumableRecord) {
-            if (consumableRecord.quantity < qty) {
-              const readableName = (consumableRecord.type?.name ?? consumableRecord.name) || 'consommable'
-              throw new Error(`Stock insuffisant pour le consommable ${readableName} — disponible ${consumableRecord.quantity}, demandé ${qty}`)
-            }
-
-            // create a DeliveryItem row so the consumable appears on the BL and in DB
-            try {
-              const desc = `${consumableRecord.type?.name ?? consumableRecord.name}${consumableRecord.sku ? ' (' + consumableRecord.sku + ')' : ''}`
-              await tx.deliveryItem.create({
-                data: {
-                  description: desc,
-                  quantity: qty,
-                  deliveryNoteId: dn.id,
-                }
-              })
-            } catch (err) {
-              console.warn('deliveryItem create failed', err)
-            }
-
-            // create history entry if model exists
-            try {
-              await tx.consumableHistory.create({
-                data: {
-                  consumableId: consumableRecord.id,
-                  change: -qty,
-                  reason: `Livré via BL ${noteNumber}`,
-                  userId: userId,
-                  recipientId: userId,
-                  deliveryNoteId: dn.id,
-                }
-              })
-            } catch (err) {
-              // if history table missing, ignore
-              console.warn('consumableHistory create failed', err)
-            }
-
-            await tx.consumable.update({ where: { id: consumableRecord.id }, data: { quantity: { decrement: qty } } })
-          }
+          await tx.consumable.update({ where: { id: rc.record.id }, data: { quantity: { decrement: qty } } })
         }
       }
 

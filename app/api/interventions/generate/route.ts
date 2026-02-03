@@ -568,23 +568,36 @@ export async function POST(req: NextRequest) {
     }
 
     // SIGNATURES SECTION
-    y = pageHeight - 50
-    
+    // Ensure signatures are placed on the actual last page and there's space for them.
+    let lastPage = doc.getNumberOfPages()
+    doc.setPage(lastPage)
+    const lastPageHeight = doc.internal.pageSize.getHeight()
+    let sigY = lastPageHeight - 50
+
+    // If the content we rendered (y) is too close to the signature area on the last page, add a new page.
+    // `y` holds the vertical cursor after rendering software table/note sections.
+    if (y > sigY - 20) {
+      doc.addPage()
+      lastPage = doc.getNumberOfPages()
+      doc.setPage(lastPage)
+      sigY = doc.internal.pageSize.getHeight() - 50
+    }
+
     doc.setDrawColor(colors.border)
     doc.setLineWidth(0.5)
-    doc.line(margin, y, margin + 80, y)
-    doc.line(pageWidth - margin - 80, y, pageWidth - margin, y)
-    
+    doc.line(margin, sigY, margin + 80, sigY)
+    doc.line(pageWidth - margin - 80, sigY, pageWidth - margin, sigY)
+
     doc.setFontSize(8)
     doc.setTextColor(colors.medium)
-    doc.text('Signature de l\'intervenant', margin + 40, y + 5, { align: 'center' })
-    doc.text('Signature du client', pageWidth - margin - 40, y + 5, { align: 'center' })
-    
+    doc.text("Signature de l'intervenant", margin + 40, sigY + 5, { align: 'center' })
+    doc.text('Signature du client', pageWidth - margin - 40, sigY + 5, { align: 'center' })
+
     // Add date lines for signatures
     doc.setFontSize(7)
     doc.setTextColor(colors.light)
-    doc.text('Date: ____/____/________', margin + 40, y + 12, { align: 'center' })
-    doc.text('Date: ____/____/________', pageWidth - margin - 40, y + 12, { align: 'center' })
+    doc.text('Date: ____/____/________', margin + 40, sigY + 12, { align: 'center' })
+    doc.text('Date: ____/____/________', pageWidth - margin - 40, sigY + 12, { align: 'center' })
     
     // Footer
     doc.setFontSize(7)
